@@ -1,0 +1,71 @@
+{
+    "manifest_version": 3,
+    "name": "Notemill",
+    "version": "1.7.4",
+    "description": "Reads an article cleanly, saves it as Markdown with its images, and files it in your Notion. Nothing leaves the browser unless you send it.",
+    "background": {
+        "service_worker": "sw.js"
+    },
+    "__firefox_background": {
+        "scripts": [
+            "notion-config.js",
+            "folder.js",
+            "notion.js",
+            "sw.js"
+        ]
+    },
+    "icons": {
+        "16": "img/icon-16.png",
+        "48": "img/icon-48.png",
+        "128": "img/icon-128.png"
+    },
+    "action": {
+        "default_title": "Make this page readable",
+        "default_icon": {
+            "16": "img/icon-16.png",
+            "32": "img/icon-32.png",
+            "48": "img/icon-48.png",
+            "128": "img/icon-128.png"
+        }
+    },
+    "commands": {
+        "_execute_action": {
+            "suggested_key": {
+                "default": "Ctrl+Shift+U",
+                "mac": "Command+Shift+U"
+            },
+            "description": "Make this page readable"
+        }
+    },
+    "options_ui": {
+        "page": "options.html",
+        "open_in_tab": true
+    },
+    "web_accessible_resources": [
+        {
+            "resources": [
+                "css/*",
+                "css/fonts/*"
+            ],
+            "matches": [
+                "<all_urls>"
+            ]
+        }
+    ],
+    "browser_specific_settings": {
+        "gecko": {
+            "id": "notemill@versuchshaus.org"
+        }
+    },
+    "permissions": [
+        "activeTab",
+        "scripting",
+        "storage",
+        "identity",
+        "downloads"
+    ],
+    "optional_host_permissions": [
+        "https://api.notion.com/*",
+        "https://*.chromiumapp.org/*"
+    ]
+}

@@ -1,0 +1,877 @@
+/* ---------------------------------------------------------------------------
+   Notemill reader stylesheet.
+
+   Copyright (c) 2026 Stephan von Lingelsheim. Original work; see LICENCE.
+
+   The class and id names below (#readability-content, #readInner, .blockImage
+   and so on) are the ones Arc90's parser emits, so they are dictated by the
+   markup rather than chosen here.
+
+   Typography, in brief:
+     - 23px root, and every vertical space is expressed in the element's own
+       em, so a heading's air scales with the heading rather than with a
+       page-wide grid. Type stays on its own terms at any zoom level.
+     - One measure: 31rem, which lands around 66 characters of Libertine at
+       this size - the range prose is comfortable to read in.
+     - Sizes follow a 1.25 ratio from the body up. Two steps down exist for
+       captions and metadata rather than for h5/h6, which prose rarely needs.
+     - Colour lives entirely in the tokens under :root, so day and night are
+       one substitution, not two stylesheets.
+--------------------------------------------------------------------------- */
+
+/* Linux Libertine, bundled under the SIL Open Font License (FONT-LICENCE.txt).
+   Unmodified and unrenamed, as the Reserved Font Name clause requires. */
+@font-face {
+  font-family: "Libertine Reader";
+  src: url("fonts/LinLibertine_R.woff") format("woff");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Libertine Reader";
+  src: url("fonts/LinLibertine_RI.woff") format("woff");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Libertine Reader";
+  src: url("fonts/LinLibertine_RB.woff") format("woff");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Libertine Reader";
+  src: url("fonts/LinLibertine_RBI.woff") format("woff");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* ---- theme tokens -------------------------------------------------------
+
+   readability.js stamps data-lr-theme on <html>; "auto" resolves to one of
+   the two before it is written, so no media query is needed here.
+------------------------------------------------------------------------- */
+
+:root {
+  --lr-serif: "Libertine Reader", "Iowan Old Style", Palatino, Georgia, serif;
+  --lr-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --lr-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --lr-measure: 31rem;
+  --lr-ratio: 1.25;
+
+  --lr-bg:          rgb(255, 255, 255);
+  --lr-fg:          rgb(28, 28, 32);
+  --lr-muted:       rgb(112, 112, 122);
+  --lr-quote:       rgb(72, 72, 80);
+  --lr-accent:      rgb(192, 48, 12);
+  --lr-code-bg:     rgb(246, 247, 249);
+  --lr-code-border: rgb(226, 228, 232);
+  --lr-inline-bg:   rgb(239, 241, 244);
+  --lr-rule:        rgb(228, 228, 232);
+  --lr-dim:         1;
+}
+
+:root[data-lr-theme="dark"] {
+  --lr-bg:          rgb(14, 14, 16);
+  --lr-fg:          rgb(226, 226, 230);
+  --lr-muted:       rgb(150, 150, 158);
+  --lr-quote:       rgb(190, 190, 198);
+  --lr-accent:      rgb(240, 122, 90);
+  --lr-code-bg:     rgb(28, 28, 32);
+  --lr-code-border: rgb(48, 48, 54);
+  --lr-inline-bg:   rgb(34, 34, 39);
+  --lr-rule:        rgb(48, 48, 54);
+  --lr-dim:         0.88;   /* photographs are glaring on a dark page */
+}
+
+/* ---- page --------------------------------------------------------------- */
+
+html {
+  /* 23px, not the 18px this rewrite first shipped. The stylesheet it replaced
+     ran at 137.5% of 16px = 22px, so 18px was a fifth smaller than what the
+     reader was used to - a regression, not a design decision. */
+  font-size: 23px;
+  -webkit-text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+html,
+body {
+  background-color: var(--lr-bg);
+  color: var(--lr-fg);
+}
+
+body {
+  margin: 0;
+  padding: 0 1.25rem 4rem;
+  font-family: var(--lr-serif);
+  font-size: 1rem;
+  line-height: 1.6;
+  font-kerning: normal;
+  font-variant-numeric: oldstyle-nums proportional-nums;
+}
+
+/* The page's own stylesheets are gone by the time this applies and inline
+   styles have been stripped, so this only neutralises presentational
+   leftovers such as a bgcolor attribute. Non-important on purpose: the type
+   selectors below then win by specificity without needing !important. */
+* {
+  background-color: transparent;
+}
+
+/* ---- measure ------------------------------------------------------------
+
+   The parser builds #readOverlay > (#readTools, #readInner), and #readInner
+   holds the article title as a direct child, then #readability-content, then
+   #readFooter. So the measure belongs on #readInner: put it on the content
+   instead and the title hangs outside the column.
+------------------------------------------------------------------------- */
+
+#readInner {
+  max-width: var(--lr-measure);
+  margin: 0 auto;
+}
+
+#readability-content,
+#readFooter {
+  max-width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+#readInner > h1:first-child {
+  margin-top: 0.2em;
+}
+
+/* ---- prose -------------------------------------------------------------- */
+
+p {
+  margin: 0 0 1.15em;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+}
+
+/* Optical detail worth the two lines: the opening paragraph of the article
+   is not indented, later ones need no top margin because the bottom margin
+   above them already spaces them. */
+p:last-child {
+  margin-bottom: 0;
+}
+
+a {
+  color: var(--lr-accent);
+  text-decoration: underline;
+  text-decoration-thickness: 0.06em;
+  text-underline-offset: 0.15em;
+  text-decoration-color: color-mix(in srgb, var(--lr-accent) 45%, transparent);
+}
+
+a:hover {
+  text-decoration-color: var(--lr-accent);
+}
+
+strong, b { font-weight: 700; }
+em, i     { font-style: italic; }
+
+small,
+.lr-meta {
+  font-size: calc(1rem / var(--lr-ratio));
+  color: var(--lr-muted);
+}
+
+hr {
+  height: 0;
+  margin: 2.5em auto;
+  border: 0;
+  border-top: 1px solid var(--lr-rule);
+  max-width: 8rem;
+}
+
+/* ---- headings -----------------------------------------------------------
+
+   Sans-serif against the serif body, tight leading because display sizes
+   need less, and more air above than below so a heading belongs to the text
+   it introduces.
+------------------------------------------------------------------------- */
+
+h1, h2, h3, h4, h5, h6 {
+  margin: 1.8em 0 0.6em;
+  font-family: var(--lr-sans);
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: -0.011em;
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: calc(1rem * var(--lr-ratio) * var(--lr-ratio) * var(--lr-ratio));
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  margin-top: 0.4em;
+}
+
+h2 { font-size: calc(1rem * var(--lr-ratio) * var(--lr-ratio)); }
+h3 { font-size: calc(1rem * var(--lr-ratio)); }
+h4 { font-size: 1rem; }
+
+h5, h6 {
+  font-size: calc(1rem / var(--lr-ratio));
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lr-muted);
+}
+
+/* ---- lists -------------------------------------------------------------- */
+
+ul, ol {
+  margin: 0 0 1.15em;
+  padding-left: 1.4em;
+}
+
+li {
+  margin-bottom: 0.35em;
+}
+
+li > ul,
+li > ol {
+  margin: 0.35em 0 0;
+}
+
+li::marker {
+  color: var(--lr-muted);
+}
+
+dt { font-weight: 700; }
+dd { margin: 0 0 0.8em 1.4em; }
+
+/* ---- quotations --------------------------------------------------------- */
+
+blockquote {
+  margin: 1.6em 0;
+  padding-left: 1.1em;
+  border-left: 2px solid var(--lr-accent);
+  color: var(--lr-quote);
+  font-style: italic;
+}
+
+blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+blockquote cite,
+blockquote footer {
+  display: block;
+  margin-top: 0.5em;
+  font-size: calc(1rem / var(--lr-ratio));
+  font-style: normal;
+  color: var(--lr-muted);
+}
+
+/* ---- pictures ----------------------------------------------------------- */
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+#readability-content img,
+#readability-content .blockImage {
+  display: block;
+  margin: 1.6em auto;
+  filter: brightness(var(--lr-dim));
+}
+
+/* Furniture-sized images stay inline: avatars and icons are not figures. */
+#readability-content img[width]:not([width="0"]) {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+figure {
+  margin: 1.8em 0;
+}
+
+figure img {
+  margin-bottom: 0.6em;
+}
+
+figcaption {
+  font-family: var(--lr-sans);
+  font-size: calc(1rem / var(--lr-ratio));
+  line-height: 1.5;
+  text-align: center;
+  color: var(--lr-muted);
+}
+
+/* ---- text the browser colours by itself --------------------------------
+
+   A real bug, found on a dark page: the browser's own stylesheet gives
+   <mark> black text on yellow. The rule above clears the yellow, and the
+   black survived onto a near-black background - a whole highlighted
+   paragraph was invisible. Anything the UA colours has to be brought back
+   under the theme's control.
+------------------------------------------------------------------------- */
+
+mark {
+  padding: 0 0.12em;
+  border-radius: 3px;
+  background-color: color-mix(in srgb, var(--lr-accent) 22%, transparent);
+  color: inherit;
+}
+
+/* The same hazard, for the tags that carry their own colour or a colour
+   attribute. Author rules override presentational hints, so this is enough. */
+font,
+[color],
+del,
+ins,
+s,
+u,
+abbr,
+output,
+small {
+  color: inherit;
+}
+
+del, s { text-decoration: line-through; }
+ins    { text-decoration: underline; }
+
+/* ---- code --------------------------------------------------------------- */
+
+pre {
+  margin: 1.6em 0;
+  padding: 0.9em 1em;
+  overflow-x: auto;
+  background-color: var(--lr-code-bg);
+  border: 1px solid var(--lr-code-border);
+  border-radius: 6px;
+  font-family: var(--lr-mono);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  white-space: pre;
+  tab-size: 2;
+  font-variant-numeric: normal;
+}
+
+pre code {
+  padding: 0;
+  background: none;
+  border: 0;
+  font-size: inherit;
+  white-space: inherit;
+}
+
+code {
+  padding: 0.12em 0.35em;
+  background-color: var(--lr-inline-bg);
+  border-radius: 4px;
+  font-family: var(--lr-mono);
+  font-size: 0.82em;
+  font-variant-numeric: normal;
+}
+
+kbd {
+  padding: 0.1em 0.4em;
+  border: 1px solid var(--lr-code-border);
+  border-radius: 4px;
+  font-family: var(--lr-sans);
+  font-size: 0.78em;
+}
+
+/* ---- tables ------------------------------------------------------------- */
+
+table {
+  width: 100%;
+  margin: 1.6em 0;
+  border-collapse: collapse;
+  font-size: calc(1rem / 1.11);
+}
+
+caption {
+  margin-bottom: 0.5em;
+  font-family: var(--lr-sans);
+  font-size: calc(1rem / var(--lr-ratio));
+  color: var(--lr-muted);
+  text-align: left;
+}
+
+th, td {
+  padding: 0.45em 0.7em;
+  border-bottom: 1px solid var(--lr-rule);
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  font-family: var(--lr-sans);
+  font-size: calc(1rem / var(--lr-ratio));
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--lr-muted);
+}
+
+/* ---- the parser's own furniture ----------------------------------------- */
+
+#readFooter {
+  margin-top: 3rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--lr-rule);
+  font-family: var(--lr-sans);
+  font-size: calc(1rem / var(--lr-ratio));
+  color: var(--lr-muted);
+}
+
+/* ---------------------------------------------------------------------------
+   Tools bar.
+
+   The visual language is shadcn/ui, rebuilt in plain CSS: the same HSL design
+   tokens, radii, button variants, focus ring, popover treatment and the
+   tailwindcss-animate motion vocabulary (fade-in, zoom-in-95, slide-in-from-
+   top). shadcn/ui itself is React + Tailwind + Radix, which cannot be injected
+   into an arbitrary page by a 100 KB content script - the tokens and the
+   component recipes are what carry the look, so those are what is ported.
+
+   Motion is purposeful: every animation explains a state change (a surface
+   arriving, work in progress, a result landing) and nothing decorates. All of
+   it collapses under prefers-reduced-motion.
+--------------------------------------------------------------------------- */
+
+#readTools {
+  /* shadcn/ui default (zinc) tokens, light. */
+  --background:          0 0% 100%;
+  --foreground:          240 10% 3.9%;
+  --card:                0 0% 100%;
+  --popover:             0 0% 100%;
+  --popover-foreground:  240 10% 3.9%;
+  --primary:             12 88% 40%;      /* the reader's rust, as the brand */
+  --primary-foreground:  0 0% 98%;
+  --secondary:           240 4.8% 95.9%;
+  --secondary-foreground:240 5.9% 10%;
+  --muted:               240 4.8% 95.9%;
+  --muted-foreground:    240 3.8% 46.1%;
+  --accent:              240 4.8% 95.9%;
+  --accent-foreground:   240 5.9% 10%;
+  --destructive:         0 72% 51%;
+  --destructive-foreground: 0 0% 98%;
+  --success:             142 71% 29%;
+  --border:              240 5.9% 90%;
+  --input:               240 5.9% 90%;
+  --ring:                12 88% 40%;
+  --radius: 0.5rem;
+}
+
+:root[data-lr-theme="dark"] #readTools {
+  --background:          240 6% 8%;
+  --foreground:          0 0% 95%;
+  --card:                240 6% 10%;
+  --popover:             240 6% 11%;
+  --popover-foreground:  0 0% 95%;
+  --primary:             14 82% 55%;
+  --primary-foreground:  0 0% 100%;
+  --secondary:           240 4% 16%;
+  --secondary-foreground:0 0% 95%;
+  --muted:               240 4% 16%;
+  --muted-foreground:    240 5% 65%;
+  --accent:              240 4% 18%;
+  --accent-foreground:   0 0% 95%;
+  --destructive:         0 72% 58%;
+  --success:             142 60% 45%;
+  --border:              240 4% 20%;
+  --input:               240 4% 22%;
+  --ring:                14 82% 55%;
+}
+
+#readTools {
+
+  --lr-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Absolute, not rem: the bar is interface, not prose, and tying it to the
+     article's root size meant a change there silently shrank the buttons.
+     That is exactly what happened when the root moved to 18px - the labels
+     went from 12px to 10px. */
+  --lr-text: 13px;
+
+  /* Stays put while the article scrolls under it. */
+  position: sticky;
+  top: 0.6rem;
+  z-index: 40;
+
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  width: fit-content;
+  max-width: calc(100vw - 2rem);
+  margin: 0.6rem 1rem 1.5rem auto;
+  padding: 0.4rem;
+  background-color: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) + 4px);
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  line-height: normal;
+  animation: lr-enter 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Once the article runs underneath, the card lifts off the page: a heavier
+   shadow and a frosted ground so text scrolling behind stays legible. */
+#readTools.stuck {
+  box-shadow: 0 8px 24px -8px rgb(0 0 0 / 0.25), 0 2px 6px -2px rgb(0 0 0 / 0.12);
+  background-color: hsl(var(--card) / 0.88);
+  backdrop-filter: saturate(180%) blur(8px);
+  -webkit-backdrop-filter: saturate(180%) blur(8px);
+}
+
+#readTools .lr-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.3rem;
+  max-width: 100%;
+}
+
+/* The chooser is a surface that arrives, so it slides in rather than appearing. */
+#readTools .lr-row.lr-panel {
+  animation: lr-panel-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ---- buttons ------------------------------------------------------------
+
+   The states carry the whole model:
+     rest      black on white
+     hover     red outline - the same treatment as keyboard focus, so pointer
+               and keyboard tell the reader the same thing
+     current   the button last pressed, filled red
+     previous  the one pressed before it, filled red at 60% - a one-step trail
+               of what just happened, rather than a permanent highlight
+--------------------------------------------------------------------------- */
+
+#readTools a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35em;
+  height: 2.25em;
+  padding: 0 0.75em;
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: var(--lr-font);
+  font-size: var(--lr-text);
+  font-weight: 500;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 150ms ease, color 150ms ease,
+              border-color 150ms ease, box-shadow 150ms ease,
+              opacity 200ms ease, transform 100ms ease;
+}
+
+#readTools a:hover,
+#readTools a:focus-visible,
+#readTools a.armed {
+  outline: none;
+  border-color: hsl(var(--ring));
+  box-shadow: 0 0 0 1px hsl(var(--ring));
+}
+
+/* Pressing gives way slightly: the surface acknowledges the click itself. */
+#readTools a:active {
+  transform: scale(0.97);
+}
+
+#readTools a.is-current,
+#readTools a.is-previous {
+  background-color: hsl(var(--primary));
+  border-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+#readTools a.is-previous {
+  opacity: 0.6;
+}
+
+#readTools a.is-current:hover,
+#readTools a.is-previous:hover,
+#readTools a.is-current:focus-visible,
+#readTools a.is-previous:focus-visible,
+#readTools a.is-current.armed {
+  border-color: hsl(var(--ring));
+  box-shadow: 0 0 0 1px hsl(var(--background)), 0 0 0 3px hsl(var(--ring) / 0.55);
+}
+
+#readTools a[aria-disabled="true"] {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+#readTools select:focus-visible,
+#readTools input[type="text"]:focus-visible {
+  outline: none;
+  border-color: hsl(var(--ring));
+  box-shadow: 0 0 0 1px hsl(var(--ring));
+}
+
+#readTools .lr-icon {
+  width: 1em;
+  height: 1em;
+  flex: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Work in progress, shown on the control that started it. */
+#readTools .lr-icon.spin {
+  animation: lr-spin 900ms linear infinite;
+}
+
+/* A result landing: a short, single pop, then stillness. */
+#readTools .lr-icon.pop {
+  animation: lr-pop 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ---- form controls ------------------------------------------------------ */
+
+#readTools .lr-label {
+  font-family: var(--lr-font);
+  font-size: var(--lr-text);
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+}
+
+#readTools select,
+#readTools input[type="text"] {
+  height: 2.25em;
+  padding: 0 0.5em;
+  border: 1px solid hsl(var(--input));
+  border-radius: calc(var(--radius) - 2px);
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: var(--lr-font);
+  font-size: var(--lr-text);
+  line-height: 1;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+#readTools select { max-width: 16em; }
+
+#readTools input[type="text"] {
+  width: 13em;
+}
+
+#readTools input[type="text"]::placeholder {
+  color: hsl(var(--muted-foreground));
+}
+
+#readTools select[disabled],
+#readTools input[type="text"][disabled] {
+  opacity: 0.6;
+}
+
+/* ---- popover / command list --------------------------------------------- */
+
+#readTools .lr-tagbox {
+  position: relative;
+  display: inline-block;
+}
+
+#readTools .lr-suggest {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 50;
+  min-width: 100%;
+  max-height: 12em;
+  margin: 0;
+  padding: 0.25rem;
+  overflow-y: auto;
+  list-style: none;
+  background-color: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  font-family: var(--lr-font);
+  font-size: var(--lr-text);
+  line-height: 1.4;
+  text-align: left;
+  /* Radix popover motion: it grows out of the field it belongs to. */
+  transform-origin: top left;
+  animation: lr-popover-in 140ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#readTools .lr-suggest li {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0.4em 0.55em;
+  border-radius: calc(var(--radius) - 4px);
+  color: hsl(var(--popover-foreground));
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 100ms ease, color 100ms ease;
+}
+
+#readTools .lr-suggest li:hover,
+#readTools .lr-suggest li.on {
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+/* ---- status line -------------------------------------------------------- */
+
+#readMarkdownStatus {
+  font-family: var(--lr-font);
+  font-size: var(--lr-text);
+  color: hsl(var(--muted-foreground));
+}
+
+#readMarkdownStatus:empty {
+  display: none;
+}
+
+#readTools .lr-msg {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  padding: 0 0.15em;
+  animation: lr-msg-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#readTools .lr-msg.is-error   { color: hsl(var(--destructive)); }
+#readTools .lr-msg.is-success { color: hsl(var(--success)); }
+
+/* ---- motion ------------------------------------------------------------- */
+
+@keyframes lr-enter {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes lr-panel-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes lr-popover-in {
+  from { opacity: 0; transform: scale(0.95) translateY(-2px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes lr-msg-in {
+  from { opacity: 0; transform: translateX(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes lr-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes lr-pop {
+  0%   { transform: scale(0.6); opacity: 0; }
+  60%  { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #readTools,
+  #readTools *,
+  #readTools *::before,
+  #readTools *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+  #readTools a:active { transform: none; }
+}
+
+/* ---------------------------------------------------------------------------
+   Print.
+
+   Last in the file on purpose. This block used to sit up with the article
+   styles, where `#readTools { display: none }` was overridden by the bar's
+   own `display: flex` further down - same specificity, later rule wins - so
+   the toolbar printed on every page. Keep print rules at the end.
+--------------------------------------------------------------------------- */
+
+@media print {
+  /* Nothing of the interface belongs on paper. */
+  #readTools,
+  #readMarkdownStatus,
+  #readTools .lr-suggest {
+    display: none !important;
+  }
+
+  html {
+    font-size: 11pt;                 /* paper is not a screen */
+  }
+
+  html,
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  body {
+    padding: 0;
+  }
+
+  /* Use the page's width rather than the screen's measure, and never dim a
+     photograph for print. */
+  #readInner,
+  #readability-content {
+    max-width: none;
+  }
+
+  #readability-content img,
+  #readability-content .blockImage {
+    filter: none;
+    max-width: 100%;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  /* Keep blocks whole across a page break where the paper allows it. */
+  pre,
+  blockquote,
+  figure,
+  table,
+  img {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  pre {
+    border-color: rgb(180, 180, 185);
+    white-space: pre-wrap;           /* a printed page cannot scroll sideways */
+  }
+
+  #readFooter {
+    border-top: 1px solid rgb(180, 180, 185);
+  }
+}

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Notemill Options</title>
+    <style>
+      body { font: 14px/1.5 system-ui, sans-serif; margin: 1.5em auto; max-width: 42em; padding: 0 1em; }
+      h2 { margin-top: 2em; border-top: 1px solid #ddd; padding-top: 1em; }
+      label { display: block; font-weight: 600; margin-top: 1em; }
+      textarea, input[type=text], input[type=password] { width: 100%; box-sizing: border-box; }
+      select { max-width: 22em; }
+      textarea { font-family: monospace; }
+      input, select, button { font: inherit; }
+      button { margin-top: 0.75em; margin-right: 0.5em; }
+      code { background: #f2f2f2; padding: 0.1em 0.3em; user-select: all; }
+      .hint { color: #555; margin: 0.25em 0 0; }
+      .ok  { color: #0a0; }
+      .err { color: #b00; }
+      #css_state, #save_folder, #notion_state, #notion_target_state, #theme_state { min-height: 1.2em; margin: 0.5em 0 0; }
+      details { margin-top: 1.25em; border-top: 1px solid #eee; padding-top: 0.75em; }
+      summary { cursor: pointer; color: #555; font-size: 0.95em; }
+      #notion_connect { font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <h1>Notemill options</h1>
+
+    <label>Save .md to</label>
+    <p class="hint">
+      Chosen on the reader page: press <b>Save .md</b> and the bar offers the
+      folder, with a way to change it. Left unset, articles go to the browser's
+      Downloads folder.
+    </p>
+    <p id="save_folder">Downloads folder.</p>
+    <button type="button" id="pick_folder">Choose folder…</button>
+    <button type="button" id="clear_folder">Use Downloads</button>
+
+    <label for="lr_theme">Theme</label>
+    <p class="hint">Applies to the reader page. Changing it updates pages that are already open.</p>
+    <select id="lr_theme">
+      <option value="auto">Follow the system</option>
+      <option value="light">Day</option>
+      <option value="dark">Night</option>
+    </select>
+    <p id="theme_state" class="hint"></p>
+
+    <label for="css_readability">Custom CSS</label>
+    <p class="hint">
+      Replaces the built-in stylesheet entirely. Leave this empty to use the
+      bundled default (Linux Libertine).
+    </p>
+    <textarea name="css_readability" id="css_readability" rows="12"></textarea>
+    <button type="button" id="save">Save CSS</button>
+    <p id="css_state" class="hint"></p>
+
+    <h2>Notion</h2>
+    <p class="hint">
+      "Send to Notion" on the reader page saves the cleaned article as a new
+      Notion page through Notion's official API. Press Connect, sign in, and
+      tick the pages Notion may write to.
+    </p>
+
+    <button type="button" id="notion_connect">Connect to Notion</button>
+    <button type="button" id="notion_disconnect">Disconnect</button>
+    <p id="notion_state">Not connected.</p>
+
+    <details id="notion_app">
+      <summary>Notion app credentials</summary>
+      <p class="hint">
+        Notion's token exchange requires a client secret and supports no PKCE,
+        so a sign-in needs an app to sign in to. This copy of the extension can
+        carry one in <code>notion-config.js</code> - then there is nothing to
+        fill in here. Otherwise create one at
+        <a href="https://www.notion.so/profile/integrations" target="_blank" rel="noopener">notion.so/profile/integrations</a>
+        (type <b>Public</b>), register the redirect URI below, and paste its
+        Configuration tab values.
+      </p>
+      <p class="hint">Redirect URI to register: <code id="notion_redirect">…</code></p>
+
+      <label for="notion_client_id">OAuth client ID</label>
+      <input type="text" id="notion_client_id" autocomplete="off" spellcheck="false">
+
+      <label for="notion_client_secret">OAuth client secret</label>
+      <input type="password" id="notion_client_secret" autocomplete="off">
+      <p class="hint">Stored only in this browser profile. Leave both empty to use the shipped app.</p>
+    </details>
+
+    <label for="notion_target">Preselected destination</label>
+    <p class="hint">You are asked where to save on every "Send to Notion"; this only sets which
+      entry is preselected. The list holds the databases and pages you granted during sign-in.</p>
+    <select id="notion_target"><option value="">— connect first —</option></select>
+    <button type="button" id="notion_refresh">Refresh list</button>
+    <p id="notion_target_state" class="hint"></p>
+
+    <script src="folder.js"></script>
+    <script src="notion-config.js"></script>
+    <script src="notion.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>

@@ -1,0 +1,16 @@
+# build artifact produced by `make`
+*.zip
+
+.DS_Store
+
+# local Notion app credentials - never commit, never publish
+notion-config.js
+
+# extension signing key - keep out of git
+key.pem
+notemill-key.pem
+
+# generated from manifest.base.json by tools/manifest.py (carries the pinned id)
+manifest.json
+
+build/

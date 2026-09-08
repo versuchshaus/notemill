@@ -1,0 +1,17 @@
+# Cloudflare Workers configuration for Notemill's token exchange.
+#
+# The two secrets are NOT stored here. Set them once, and they stay in
+# Cloudflare:
+#
+#   wrangler secret put NOTION_CLIENT_ID
+#   wrangler secret put NOTION_CLIENT_SECRET
+#
+# Optional, recommended once the extension has a stable id:
+#
+#   wrangler secret put ALLOWED_ORIGINS      # chrome-extension://<id>
+#
+name = "notemill-token-exchange"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# No KV, no D1, no durable objects: this worker keeps nothing.

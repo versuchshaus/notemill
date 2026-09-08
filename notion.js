@@ -30,16 +30,31 @@ var LRNotion = (function () {
             : null;
     return {
       clientId:     (app && app.clientId)     || "",
-      clientSecret: (app && app.clientSecret) || ""
+      clientSecret: (app && app.clientSecret) || "",
+      exchangeUrl:  (app && app.exchangeUrl)  || ""
     };
   }
 
-  /** Stored values win, so a user can still point this at their own app. */
+  /**
+   * Stored values win, so a user can still point this at their own app.
+   *
+   * A sign-in needs the client id (public, it goes in the consent URL) plus
+   * *either* a client secret here or an `exchangeUrl` - a small endpoint that
+   * holds the secret and performs the token exchange. The second is what a
+   * published build uses, because a secret shipped inside an extension can be
+   * read by anyone who installs it.
+   */
   function credentials(settings) {
     var d = appDefaults();
+    var clientId     = (settings && settings.clientId)     || d.clientId;
+    var clientSecret = (settings && settings.clientSecret) || d.clientSecret;
+    var exchangeUrl  = (settings && settings.exchangeUrl)  || d.exchangeUrl;
     return {
-      clientId:     (settings && settings.clientId)     || d.clientId,
-      clientSecret: (settings && settings.clientSecret) || d.clientSecret,
+      clientId:     clientId,
+      clientSecret: clientSecret,
+      exchangeUrl:  exchangeUrl,
+      ready:        !!(clientId && (clientSecret || exchangeUrl)),
+      viaExchange:  !!(exchangeUrl && !clientSecret),
       fromApp:      !(settings && settings.clientId) && !!d.clientId
     };
   }
@@ -177,9 +192,17 @@ var LRNotion = (function () {
    * remember the workspace. The client secret is the user's own (their
    * integration), stored locally so the exchange can run from the browser.
    */
-  function connect(clientId, clientSecret) {
-    if (!clientId || !clientSecret) {
-      return Promise.reject(fail("Enter the integration's OAuth client ID and secret first.", "config"));
+  /**
+   * @param String clientId
+   * @param String clientSecret  may be empty when exchangeUrl is given
+   * @param String exchangeUrl   endpoint that swaps the code for a token
+   */
+  function connect(clientId, clientSecret, exchangeUrl) {
+    if (!clientId) {
+      return Promise.reject(fail("Enter the integration's OAuth client ID first.", "config"));
+    }
+    if (!clientSecret && !exchangeUrl) {
+      return Promise.reject(fail("Enter the client secret, or configure a token exchange.", "config"));
     }
     var redirect = redirectURL();
     var state    = randomState();
@@ -196,15 +219,24 @@ var LRNotion = (function () {
       var code = params.get("code");
       if (!code) { throw fail("Notion returned no authorization code.", "nocode"); }
 
+      /* With an exchange configured the secret is not here to use, so the
+         code goes to that endpoint instead. It is called once, only ever
+         with a consent code, and never again after this. */
+      if (!clientSecret) { return exchangeCode(exchangeUrl, code, redirect); }
+
       return request("/oauth/token", "POST", {
         grant_type:   "authorization_code",
         code:         code,
         redirect_uri: redirect
       }, null, {Authorization: "Basic " + btoa(clientId + ":" + clientSecret)});
     }).then(function (tok) {
+      if (!tok || !tok.access_token) {
+        throw fail("The token exchange returned no access token.", "notoken");
+      }
       return save({
         clientId:      clientId,
-        clientSecret:  clientSecret,
+        /* Deliberately not stored when the exchange holds it. */
+        clientSecret:  clientSecret || "",
         accessToken:   tok.access_token,
         workspaceName: tok.workspace_name || "",
         workspaceId:   tok.workspace_id   || "",
@@ -231,14 +263,37 @@ var LRNotion = (function () {
   }
 
   /** Pages and databases the integration was granted access to. */
-  function listTargets(token) {
+  /**
+   * Somewhere worth saving an article, or not?
+   *
+   * Notion's /search returns everything the integration can see, which after
+   * a few saves is mostly the articles it created itself. Two rules clear that
+   * out: a page that lives *inside* a database is a row, and you would target
+   * the database rather than one of its rows; and a page this integration
+   * created is our own output, not a destination.
+   *
+   * @param Object search result
+   * @param String botId of this integration, from the OAuth response
+   * @return Boolean
+   */
+  function isDestination(result, botId) {
+    if (result.object === "database") { return true; }
+    var parent = result.parent || {};
+    if (parent.type === "database_id") { return false; }
+    if (botId && result.created_by && result.created_by.id === botId) { return false; }
+    return true;
+  }
+
+  function listTargets(token, botId) {
     function search(kind) {
       return request("/search", "POST", {
         filter:    {property: "object", value: kind},
         sort:      {direction: "descending", timestamp: "last_edited_time"},
         page_size: 100
       }, token).then(function (res) {
-        return (res.results || []).map(function (r) {
+        return (res.results || []).filter(function (r) {
+          return isDestination(r, botId);
+        }).map(function (r) {
           return {id: r.id, type: r.object, title: titleOf(r), icon: iconOf(r)};
         });
       });
@@ -247,6 +302,25 @@ var LRNotion = (function () {
       var targets = both[0].concat(both[1]);
       return save({targets: targets}).then(function () { return targets; });
     });
+  }
+
+  /**
+   * The destinations to offer in the reader: the subset ticked in the options,
+   * or everything while nothing has been ticked.
+   *
+   * @param Array targets
+   * @param Array|null chosen ids
+   * @return Array
+   */
+  function offered(targets, chosen) {
+    var list = targets || [];
+    if (!chosen || !chosen.length) { return list; }
+    var wanted = {};
+    chosen.forEach(function (id) { wanted[id] = true; });
+    var picked = list.filter(function (t) { return wanted[t.id]; });
+    /* If every chosen destination has since disappeared, showing nothing would
+       be a dead end - fall back to the full list. */
+    return picked.length ? picked : list;
   }
 
   /**
@@ -378,6 +452,36 @@ var LRNotion = (function () {
     return out.slice(0, 100);
   }
 
+  /**
+   * Swap an authorization code for a token through our own endpoint.
+   *
+   * A plain cross-origin POST: the endpoint returns CORS headers for extension
+   * origins, so this needs no host permission. Notion's own error bodies come
+   * back verbatim, which is more useful than anything invented here.
+   *
+   * @return Promise<Object> the token response
+   */
+  function exchangeCode(exchangeUrl, code, redirect) {
+    return fetch(exchangeUrl, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({code: code, redirect_uri: redirect})
+    }).then(function (response) {
+      return response.text().then(function (text) {
+        var data;
+        try { data = text ? JSON.parse(text) : {}; } catch (e) { data = {}; }
+        if (!response.ok) {
+          throw fail(data.error_description || data.error ||
+                     ("The token exchange failed (HTTP " + response.status + ")."),
+                     "exchange");
+        }
+        return data;
+      });
+    }, function () {
+      throw fail("Could not reach the token exchange at " + exchangeUrl + ".", "exchange");
+    });
+  }
+
   /** Notion rejects some external image URLs; turn them into links and retry. */
   function demoteImages(blocks) {
     return blocks.map(function (b) {
@@ -483,7 +587,7 @@ var LRNotion = (function () {
     hasHostPermission: hasHostPermission, requestHostPermission: requestHostPermission,
     connect: connect, listTargets: listTargets, createPage: createPage,
     appDefaults: appDefaults, credentials: credentials,
-    tagOptions: tagOptions,
+    tagOptions: tagOptions, offered: offered, _isDestination: isDestination,
     // exposed for tests
     _demoteImages: demoteImages, _titleOf: titleOf, _authorize: authorize,
     _tagProperty: tagProperty, _cleanTags: cleanTags, _looksLikeTagName: looksLikeTagName,

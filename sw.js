@@ -65,12 +65,19 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
       if (!settings.accessToken) { throw errorWithCode("Connect Notion in the extension options first.", "not-connected"); }
       var cached = settings.targets || [];
       if (!msg.refresh && cached.length) { return {targets: cached, settings: settings}; }
+
       return LRNotion.hasHostPermission().then(function (ok) {
         if (!ok) { throw errorWithCode("Notion access was not granted - reconnect in the options.", "no-permission"); }
-        return LRNotion.listTargets(settings.accessToken).then(function (targets) { return {targets: targets, settings: settings}; });
+        return LRNotion.listTargets(settings.accessToken, settings.botId).then(function (targets) {
+          return {targets: targets, settings: settings};
+        });
       });
     }).then(function (r) {
-      sendResponse({ok: true, targets: r.targets,
+      /* The options page asks for everything, so it can offer the choice;
+         the reader gets only what was ticked there. */
+      var targets = msg.all ? r.targets : LRNotion.offered(r.targets, r.settings.chosenTargets);
+      sendResponse({ok: true, targets: targets, total: (r.targets || []).length,
+                    chosen: r.settings.chosenTargets || [],
                     defaultId: r.settings.target ? r.settings.target.id : null,
                     tagsByTarget: r.settings.tagsByTarget || {}});
     }, function (err) {

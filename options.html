@@ -18,6 +18,14 @@
       .err { color: #b00; }
       #css_state, #save_folder, #notion_state, #notion_target_state, #theme_state { min-height: 1.2em; margin: 0.5em 0 0; }
       details { margin-top: 1.25em; border-top: 1px solid #eee; padding-top: 0.75em; }
+      .targets {
+        max-height: 15em; overflow-y: auto; margin: 0.5em 0;
+        border: 1px solid #ddd; border-radius: 6px; padding: 0.4em 0.6em;
+      }
+      .targets label { display: flex; gap: 0.5em; align-items: baseline; font-weight: normal; margin: 0.25em 0; }
+      .targets input { margin: 0; }
+      .targets .kind { color: #888; font-size: 0.85em; }
+      .targets .none { color: #888; }
       summary { cursor: pointer; color: #555; font-size: 0.95em; }
       #notion_connect { font-weight: 600; }
     </style>
@@ -68,9 +76,9 @@
       <summary>Notion app credentials</summary>
       <p class="hint">
         Notion's token exchange requires a client secret and supports no PKCE,
-        so a sign-in needs an app to sign in to. This copy of the extension can
-        carry one in <code>notion-config.js</code> - then there is nothing to
-        fill in here. Otherwise create one at
+        so a sign-in needs an app to sign in to. A distributed build keeps that
+        secret on a small endpoint of its own (see <code>server/</code>) and
+        needs nothing here. For your own copy, create an integration at
         <a href="https://www.notion.so/profile/integrations" target="_blank" rel="noopener">notion.so/profile/integrations</a>
         (type <b>Public</b>), register the redirect URI below, and paste its
         Configuration tab values.
@@ -85,12 +93,17 @@
       <p class="hint">Stored only in this browser profile. Leave both empty to use the shipped app.</p>
     </details>
 
-    <label for="notion_target">Preselected destination</label>
-    <p class="hint">You are asked where to save on every "Send to Notion"; this only sets which
-      entry is preselected. The list holds the databases and pages you granted during sign-in.</p>
-    <select id="notion_target"><option value="">— connect first —</option></select>
-    <button type="button" id="notion_refresh">Refresh list</button>
+    <label>Destinations offered in the reader</label>
+    <p class="hint">
+      Tick the databases and pages you actually save into. Only those appear
+      when you press "Send to Notion"; the reader preselects whichever you used
+      last. With nothing ticked, everything the integration can see is offered -
+      which after a few saves is a long list.
+    </p>
+    <div id="notion_targets" class="targets"></div>
     <p id="notion_target_state" class="hint"></p>
+    <button type="button" id="notion_refresh">Refresh list</button>
+    <button type="button" id="notion_targets_none">Clear selection</button>
 
     <script src="folder.js"></script>
     <script src="notion-config.js"></script>

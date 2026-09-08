@@ -107,12 +107,11 @@ function renderNotion(settings) {
      the credentials stay folded away; without one, they are the first thing
      that needs doing and the section opens itself. */
   var cred = LRNotion.credentials(settings);
-  var ready = !!(cred.clientId && cred.clientSecret);
-  $("notion_app").open = !ready && !settings.accessToken;
-  $("notion_connect").disabled = !ready;
-  if (!ready) {
+  $("notion_app").open = !cred.ready && !settings.accessToken;
+  $("notion_connect").disabled = !cred.ready;
+  if (!cred.ready) {
     flash($("notion_target_state"),
-          cred.clientId ? "Add the client secret below to enable Connect."
+          cred.clientId ? "Add a client secret, or a token exchange URL, to enable Connect."
                         : "Add an app below, or ship one in notion-config.js, to enable Connect.", "hint");
   }
 
@@ -124,35 +123,97 @@ function renderNotion(settings) {
     flash($("notion_state"), "Not connected.", "");
   }
 
-  var select = $("notion_target");
-  select.innerHTML = "";
-  var targets = settings.targets || [];
-  if (!connected) {
-    select.appendChild(new Option("— connect first —", ""));
-  } else if (!targets.length) {
-    select.appendChild(new Option("— nothing shared yet; press Refresh —", ""));
-  } else {
-    select.appendChild(new Option("— choose —", ""));
-    targets.forEach(function (t) {
-      var label = (t.icon ? t.icon + " " : "") + t.title +
-                  (t.type === "database" ? "  (database)" : "");
-      var opt = new Option(label, t.id);
-      opt.dataset.type = t.type;
-      select.appendChild(opt);
-    });
-  }
-  if (settings.target) { select.value = settings.target.id; }
-  select.disabled = !connected;
+  renderTargets(settings.targets || [], settings.chosenTargets, connected);
   $("notion_refresh").disabled = !connected;
+  $("notion_targets_none").disabled = !connected;
 }
 
-function refreshTargets(settings) {
-  flash($("notion_target_state"), "Loading…", "hint");
-  return LRNotion.listTargets(settings.accessToken).then(function (targets) {
-    flash($("notion_target_state"), targets.length + " destination(s) available.", "hint");
-    return LRNotion.load();
-  }).then(renderNotion).catch(function (err) {
-    flash($("notion_target_state"), err.message, "err");
+/**
+ * The destinations, as tick boxes.
+ *
+ * Notion's /search returns everything the integration can see, and after a few
+ * saves most of that is the articles it created - those are filtered out in
+ * notion.js. This is where the reader's list is narrowed to what is actually
+ * used, because "everything shared" is not a menu anyone wants to read.
+ */
+function renderTargets(targets, chosen, connected) {
+  var host = $("notion_targets");
+  host.textContent = "";
+
+  if (!connected || !targets.length) {
+    var note = document.createElement("p");
+    note.className = "none";
+    note.textContent = connected
+      ? "Nothing found yet - press Refresh list."
+      : "Connect to Notion first.";
+    host.appendChild(note);
+    flash($("notion_target_state"), "", "hint");
+    return;
+  }
+
+  var ticked = {};
+  (chosen || []).forEach(function (id) { ticked[id] = true; });
+
+  targets.forEach(function (t) {
+    var row = document.createElement("label");
+    var box = document.createElement("input");
+    box.type    = "checkbox";
+    box.value   = t.id;
+    box.checked = !!ticked[t.id];
+    box.dataset.type  = t.type;
+    box.dataset.title = (t.icon ? t.icon + " " : "") + t.title +
+                        (t.type === "database" ? " (db)" : "");
+    box.addEventListener("change", saveChosenTargets);
+
+    var name = document.createElement("span");
+    name.textContent = (t.icon ? t.icon + " " : "") + t.title;
+
+    var kind = document.createElement("span");
+    kind.className   = "kind";
+    kind.textContent = t.type === "database" ? "database" : "page";
+
+    row.appendChild(box);
+    row.appendChild(name);
+    row.appendChild(kind);
+    host.appendChild(row);
+  });
+
+  describeChosen(chosen, targets.length);
+}
+
+function describeChosen(chosen, total) {
+  var n = (chosen || []).length;
+  flash($("notion_target_state"),
+        n ? n + " of " + total + " offered in the reader."
+          : "Nothing ticked, so all " + total + " are offered.",
+        "hint");
+}
+
+function saveChosenTargets() {
+  var boxes  = $("notion_targets").querySelectorAll("input");
+  var chosen = [].filter.call(boxes, function (b) { return b.checked; })
+                 .map(function (b) { return b.value; });
+  LRNotion.save({chosenTargets: chosen}).then(function () {
+    describeChosen(chosen, boxes.length);
+  });
+}
+
+function clearChosenTargets() {
+  [].forEach.call($("notion_targets").querySelectorAll("input"), function (b) { b.checked = false; });
+  saveChosenTargets();
+}
+
+/** Ask the worker for every destination, not only the ticked ones. */
+function refreshTargets() {
+  flash($("notion_target_state"), "Asking Notion…", "hint");
+  chrome.runtime.sendMessage({type: "notion-targets", refresh: true, all: true}, function (resp) {
+    if (chrome.runtime.lastError || !resp) {
+      flash($("notion_target_state"),
+            "The extension's background script did not answer - reload the extension.", "err");
+      return;
+    }
+    if (!resp.ok) { flash($("notion_target_state"), resp.error, "err"); return; }
+    renderTargets(resp.targets, resp.chosen, true);
   });
 }
 
@@ -167,36 +228,32 @@ function connectNotion() {
       "tab and copy \"OAuth client ID\" (a UUID like 1a2b3c4d-…), not the integration name.", "err");
     return;
   }
-  if (!cred.clientSecret) { flash($("notion_state"), "The app has no client secret yet.", "err"); return; }
+  if (!cred.ready) {
+    flash($("notion_state"), "This build has neither a client secret nor a token exchange.", "err");
+    return;
+  }
   flash($("notion_state"), "Waiting for Notion…", "");
 
   var clientId     = cred.clientId;
   var clientSecret = cred.clientSecret;
+  var exchangeUrl  = cred.exchangeUrl;
 
   // Persist only what was typed, so a shipped app is not copied into storage.
   LRNotion.save({clientId: typedId, clientSecret: typedSecret})
     .then(function () { return LRNotion.requestHostPermission(); })
     .then(function (granted) {
       if (!granted) { throw new Error("Access to api.notion.com was not granted."); }
-      return LRNotion.connect(clientId, clientSecret);
+      return LRNotion.connect(clientId, clientSecret, exchangeUrl);
     })
     .then(function (settings) {
       renderNotion(settings);
-      return refreshTargets(settings);
+      return refreshTargets();
     })
     .catch(function (err) { flash($("notion_state"), err.message, "err"); });
 }
 
 function disconnectNotion() {
   LRNotion.disconnect().then(renderNotion);
-}
-
-function chooseTarget() {
-  var select = $("notion_target");
-  var opt    = select.options[select.selectedIndex];
-  if (!opt || !opt.value) { LRNotion.save({target: null}); return; }
-  LRNotion.save({target: {id: opt.value, type: opt.dataset.type, title: opt.textContent}})
-    .then(function () { flash($("notion_target_state"), "Saved.", "ok", 1500); });
 }
 
 /**
@@ -244,5 +301,5 @@ $("lr_theme").addEventListener("change", saveTheme);
 $("save").addEventListener("click", saveCSS);
 $("notion_connect").addEventListener("click", connectNotion);
 $("notion_disconnect").addEventListener("click", disconnectNotion);
-$("notion_refresh").addEventListener("click", function () { LRNotion.load().then(refreshTargets); });
-$("notion_target").addEventListener("change", chooseTarget);
+$("notion_refresh").addEventListener("click", refreshTargets);
+$("notion_targets_none").addEventListener("click", clearChosenTargets);

@@ -14,7 +14,10 @@
 // is fine for your own install and not fine for publishing.
 var LR_NOTION_APP = {
   clientId:     "",
-  clientSecret: ""
+  // Leave the secret empty and set exchangeUrl for anything you distribute: a
+  // secret inside an extension can be read by whoever installs it. See server/.
+  clientSecret: "",
+  exchangeUrl:  ""
 };
 
 if (typeof module !== "undefined" && module.exports) { module.exports = LR_NOTION_APP; }

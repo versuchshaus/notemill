@@ -17,6 +17,7 @@ STOREZIP:= $(EXTNAME)-$(VERSION)-store.zip
 #   manifest.base.json  the template manifest.json is generated from
 #   notemill-*.zip      previous builds
 #   tools/              build scripts
+#   server/             the token exchange, deployed separately
 #   build/              staging
 #   WORKLOG.md          engineering notes
 SHIPPED := manifest.json readability.js content.js sw.js notion.js folder.js \
@@ -62,7 +63,7 @@ firefox: $(SHIPPED)
 	@mkdir -p $(BUILD)
 	@tools/manifest.py --target firefox --out $(BUILD)/manifest.firefox.json
 	$(call stage,$(BUILD)/manifest.firefox.json)
-	rm -f $(BUILD)/$(EXTNAME)/notion-config.js
+	@tools/appconfig.py --strip-secret --out $(BUILD)/$(EXTNAME)/notion-config.js
 	cd $(BUILD)/$(EXTNAME) && zip -q -r ../../$(EXTNAME)-$(VERSION)-firefox.zip .
 	@echo "$(EXTNAME)-$(VERSION)-firefox.zip built"
 
@@ -70,7 +71,7 @@ store: $(SHIPPED)
 	@mkdir -p $(BUILD)
 	@tools/manifest.py --target chrome --no-key --out $(BUILD)/manifest.store.json
 	$(call stage,$(BUILD)/manifest.store.json)
-	rm -f $(BUILD)/$(EXTNAME)/notion-config.js
+	@tools/appconfig.py --strip-secret --out $(BUILD)/$(EXTNAME)/notion-config.js
 	cd $(BUILD)/$(EXTNAME) && zip -q -r ../../$(STOREZIP) .
 	@echo "$(STOREZIP) built: no key, no notion-config.js"
 

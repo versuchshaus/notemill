@@ -55,6 +55,21 @@ material it carries, both satisfied by files that ship inside the extension:
 Notion is a trademark of Notion Labs, Inc. Notemill is an independent project,
 not affiliated with or endorsed by Notion Labs.
 
+## Signing in to Notion
+
+Notion's token endpoint requires HTTP Basic auth with `client_id:client_secret`
+and supports no PKCE, so a sign-in needs a confidential client. Two ways to
+have one:
+
+- **Your own integration.** Create one at notion.so/profile/integrations, put
+  its id and secret in `notion-config.js` (gitignored), and register the
+  redirect URI the options page prints. Fine for a personal copy.
+- **A token exchange** (`server/`). A small Cloudflare Worker holds the secret
+  and performs that one exchange, so the extension ships only the public client
+  id and the endpoint URL. This is what a distributed build must do, because a
+  secret inside an extension is readable by anyone who installs it. It is
+  called once per sign-in and never sees an article. See `server/README.md`.
+
 ## Building
 
     make          # notemill-<version>.zip, for loading unpacked

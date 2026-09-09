@@ -55,8 +55,17 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
   }
 
   if (msg.type === "open-options") {
-    chrome.runtime.openOptionsPage();
-    return;
+    // Only known local sections may be opened by reader recovery links.
+    var sections = ["notion", "destinations", "folder", "appearance", "custom-css"];
+    var opening = sections.indexOf(msg.at) !== -1
+      ? chrome.tabs.create({url: chrome.runtime.getURL("options.html#" + msg.at)})
+      : chrome.runtime.openOptionsPage();
+    Promise.resolve(opening).then(function () {
+      sendResponse({ok: true});
+    }, function (err) {
+      sendResponse({ok: false, error: err.message});
+    });
+    return true;
   }
 
   // Destinations for the reader page's chooser. Cached from sign-in; refreshed on demand.

@@ -1,37 +1,25 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="lr-extension-page">
   <head>
     <meta charset="utf-8">
-    <title>Choose a save folder</title>
-    <style>
-      :root { color-scheme: light dark; }
-      body {
-        margin: 0; padding: 1.5rem;
-        font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-        background: Canvas; color: CanvasText;
-      }
-      h1 { margin: 0 0 0.5rem; font-size: 1.05rem; }
-      p { margin: 0 0 1.25rem; color: color-mix(in srgb, CanvasText 62%, Canvas); }
-      button { font: inherit; padding: 0.45em 1em; border-radius: 6px; cursor: pointer; }
-      #choose {
-        background: rgb(232, 98, 16); color: white; border: 1px solid rgb(232, 98, 16); font-weight: 600;
-      }
-      #choose:hover { background: rgb(214, 88, 12); }
-      #cancel { background: transparent; border: 1px solid color-mix(in srgb, CanvasText 25%, Canvas); color: inherit; }
-      #state { margin-top: 1rem; min-height: 1.3em; }
-      .err { color: rgb(200, 60, 40); }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Choose a save folder — Notemill</title>
+    <script src="ui-theme.js"></script>
+    <link rel="stylesheet" href="css/extension.css">
   </head>
-  <body>
-    <h1>Where should Notemill save?</h1>
-    <p>
-      Pick a folder once. Every article you save goes there, in its own
-      subfolder with its images, until you choose a different one.
-    </p>
-    <button type="button" id="choose">Choose folder…</button>
-    <button type="button" id="cancel">Cancel</button>
-    <p id="state"></p>
-
+  <body class="picker">
+    <main>
+      <div class="card">
+        <h1>Where should Notemill save?</h1>
+        <p class="hint">Pick a folder once. Every article goes there in its own subfolder
+          with its images, until you choose a different one.</p>
+        <div class="actions">
+          <button type="button" id="choose" class="primary" autofocus>Choose folder…</button>
+          <button type="button" id="cancel">Cancel</button>
+        </div>
+        <p id="state" role="status" aria-live="polite"></p>
+      </div>
+    </main>
     <script src="folder.js"></script>
     <script src="pick.js"></script>
   </body>

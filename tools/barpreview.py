@@ -62,7 +62,7 @@ CASES = [
 ]
 
 def page(theme):
-    css = read("css/readability.css")
+    css = read("css/readability.css").replace('@import url("ui-tokens.css");', read("css/ui-tokens.css"))
     if theme == "dark": css = css.replace(':root[data-lr-theme="dark"]', ":root")
     body = "".join("<p class='cap'>%s</p><div id='readTools'>%s</div>" % (c, h) for c, h in CASES)
     # Astra: reuse the production alignment routine; static CSS alone cannot

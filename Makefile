@@ -22,7 +22,7 @@ STOREZIP:= $(EXTNAME)-$(VERSION)-store.zip
 #   WORKLOG.md          engineering notes
 SHIPPED := manifest.json readability.js content.js sw.js notion.js folder.js \
            notion-config.js notion-config.example.js options.html options.js \
-           pick.html pick.js \
+           pick.html pick.js ui-theme.js \
            css img LICENCE LICENCE-APACHE FONT-LICENCE.txt README.md
 
 all: $(ZIP)
@@ -47,7 +47,10 @@ define stage
 	cp $(1) $(BUILD)/$(EXTNAME)/manifest.json
 endef
 
-$(ZIP): manifest.json $(SHIPPED)
+# Existing CSS/image edits do not change their directory's mtime.
+ASSETS := $(shell find css img -type f)
+
+$(ZIP): manifest.json $(SHIPPED) $(ASSETS)
 	$(call stage,manifest.json)
 	cd $(BUILD)/$(EXTNAME) && zip -q -r ../../$(ZIP) .
 	@echo "$(ZIP) built"

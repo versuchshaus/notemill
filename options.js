@@ -87,13 +87,14 @@ function clearFolder() {
 
 function restoreTheme() {
   chrome.storage.sync.get({lrTheme: "auto"}, function (items) {
-    $("lr_theme").value = (items && items.lrTheme) || "auto";
+    LRUITheme.apply((items && items.lrTheme) || "auto");
   });
 }
 
 function saveTheme() {
+  LRUITheme.apply($("lr_theme").value);
   chrome.storage.sync.set({lrTheme: $("lr_theme").value}, function () {
-    flash($("theme_state"), "Saved. Open reader pages follow immediately.", "ok", 2000);
+    flash($("theme_state"), "Saved. Open Notemill pages follow immediately.", "ok", 2000);
   });
 }
 
@@ -286,13 +287,44 @@ function healStaleWorker() {
   });
 }
 
+/* Astra: recovery links land on a usable control, not merely at the top. */
+function focusSettingsSection() {
+  var section = window.location.hash.slice(1);
+  var targets = {folder: "pick_folder", appearance: "lr_theme", "custom-css": "css_readability",
+                 destinations: $("notion_refresh").disabled ? "destinations" : "notion_refresh"};
+  if (section === "notion") {
+    if (!$("notion_connect").disabled) { targets.notion = "notion_connect"; }
+    else {
+      $("notion_app").open = true;
+      targets.notion = $("notion_client_id").value.trim() ? "notion_client_secret" : "notion_client_id";
+    }
+  }
+  var target = targets[section] && $(targets[section]);
+  if (!target) { return; }
+  target.focus({preventScroll: true});
+  target.scrollIntoView({block: "center"});
+}
+
+function updateConnectAvailability() {
+  var cred = LRNotion.credentials({clientId: $("notion_client_id").value.trim(),
+                                   clientSecret: $("notion_client_secret").value.trim()});
+  $("notion_connect").disabled = !cred.ready;
+}
+
+window.addEventListener("hashchange", focusSettingsSection);
+$("notion_client_id").addEventListener("input", updateConnectAvailability);
+$("notion_client_secret").addEventListener("input", updateConnectAvailability);
+
 document.addEventListener("DOMContentLoaded", function () {
   healStaleWorker();
   restoreFolder();
   restoreTheme();
   restoreCSS();
   $("notion_redirect").textContent = LRNotion.redirectURL();
-  LRNotion.load().then(renderNotion);
+  LRNotion.load().then(function (settings) {
+    renderNotion(settings);
+    focusSettingsSection();
+  });
 });
 
 $("pick_folder").addEventListener("click", pickFolder);

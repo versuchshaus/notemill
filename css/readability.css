@@ -19,6 +19,8 @@
        one substitution, not two stylesheets.
 --------------------------------------------------------------------------- */
 
+@import url("ui-tokens.css");
+
 /* Linux Libertine, bundled under the SIL Open Font License (FONT-LICENCE.txt).
    Unmodified and unrenamed, as the Reserved Font Name clause requires. */
 @font-face {
@@ -450,70 +452,7 @@ th {
    it collapses under prefers-reduced-motion.
 --------------------------------------------------------------------------- */
 
-#readTools {
-  /* shadcn/ui default (zinc) tokens, light. */
-  --background:          0 0% 100%;
-  --foreground:          240 10% 3.9%;
-  --card:                0 0% 100%;
-  --popover:             0 0% 100%;
-  --popover-foreground:  240 10% 3.9%;
-  --primary:             12 88% 40%;      /* the reader's rust, as the brand */
-  --primary-foreground:  0 0% 98%;
-  /* The open trigger carries a solid fill and white text, so it holds its
-     own against the panel it opens. Its own tokens, not --primary, because
-     dark needs a deeper fill (white 13px text clears 4.5:1 only below ~46%
-     lightness) and a lighter rim to draw the edge the dark card cannot. */
-  /* Two orange treatments, one meaning each: the trigger that owns the open
-     panel is outlined and tinted, the button that commits is filled. Which
-     way round matters - filling the trigger put the loudest thing in the card
-     on the button the reader had already pressed. */
-  --open-bg:             15 89% 42%;   /* tinted at 14%, see a.open */
-  --open-border:         15 89% 46%;
-  --open-foreground:     15 89% 36%;   /* label on that tint, 5.6:1 */
-  --fill-bg:             15 89% 42%;   /* the filled Save; white text 4.8:1 */
-  --fill-ring:           22 87% 49%;   /* a ring that reads against a fill */
-  --done-foreground:     15 89% 40%;   /* the result line, 5.5:1 on the card */
-  --secondary:           240 4.8% 95.9%;
-  --secondary-foreground:240 5.9% 10%;
-  --muted:               240 4.8% 95.9%;
-  --muted-foreground:    240 3.8% 46.1%;
-  --accent:              240 4.8% 95.9%;
-  --accent-foreground:   240 5.9% 10%;
-  --destructive:         0 72% 51%;
-  --destructive-foreground: 0 0% 98%;
-  --success:             142 71% 29%;
-  --border:              240 5.9% 90%;
-  --input:               240 5.9% 90%;
-  --ring:                12 88% 40%;
-  --radius: 0.5rem;
-}
-
-:root[data-lr-theme="dark"] #readTools {
-  --background:          240 6% 8%;
-  --foreground:          0 0% 95%;
-  --card:                240 6% 10%;
-  --popover:             240 6% 11%;
-  --popover-foreground:  0 0% 95%;
-  --primary:             14 82% 55%;
-  --primary-foreground:  0 0% 100%;
-  --open-bg:             14 82% 55%;
-  --open-border:         14 82% 58%;
-  --open-foreground:     14 90% 64%;
-  --fill-bg:             14 82% 45%;
-  --fill-ring:           0 0% 92%;
-  --done-foreground:     14 90% 62%;
-  --secondary:           240 4% 16%;
-  --secondary-foreground:0 0% 95%;
-  --muted:               240 4% 16%;
-  --muted-foreground:    240 5% 65%;
-  --accent:              240 4% 18%;
-  --accent-foreground:   0 0% 95%;
-  --destructive:         0 72% 58%;
-  --success:             142 60% 45%;
-  --border:              240 4% 20%;
-  --input:               240 4% 22%;
-  --ring:                14 82% 55%;
-}
+/* Interface colours are shared with extension pages in ui-tokens.css. */
 
 #readTools {
 

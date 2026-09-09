@@ -33,7 +33,8 @@ const root = path.resolve(__dirname, '..');
     await call('Input.dispatchKeyEvent', {type: 'keyUp', key, code, windowsVirtualKeyCode: virtual});
   }
   try {
-    const css = fs.readFileSync(path.join(root, 'css/readability.css'), 'utf8');
+    const css = fs.readFileSync(path.join(root, 'css/readability.css'), 'utf8')
+      .replace('@import url("ui-tokens.css");', fs.readFileSync(path.join(root, 'css/ui-tokens.css'), 'utf8'));
     await evaluate(`document.body.innerHTML = '<article><h1>Astra browser fixture</h1>' + '<p>This is a substantial article paragraph, with useful information about reading and saving notes. It contains enough text for extraction and repeated paragraphs for keyboard scrolling.</p>'.repeat(40) + '</article>';
       window.chrome = {storage: {sync: {get: (defaults, cb) => cb({...defaults, cssReadability: ${JSON.stringify(css)}})}}, runtime: {sendMessage: (msg, cb) => {
         if (msg.type === 'save-target') cb({ok:true, folder:'Test notes'});

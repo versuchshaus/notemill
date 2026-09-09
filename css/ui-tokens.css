@@ -1,0 +1,61 @@
+/* Notemill's shared interface palette. Original work; see LICENCE.
+   Scoped to the toolbar on articles, and the root on extension-owned pages. */
+#readTools, :root.lr-extension-page {
+  --background: 0 0% 100%;
+  --foreground: 240 10% 3.9%;
+  --card: 0 0% 100%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 3.9%;
+  --primary: 12 88% 40%;
+  --primary-foreground: 0 0% 98%;
+  --open-bg: 15 89% 42%;
+  --open-border: 15 89% 46%;
+  --open-foreground: 15 89% 36%;
+  --fill-bg: 15 89% 42%;
+  --fill-ring: 22 87% 49%;
+  --done-foreground: 15 89% 40%;
+  --secondary: 240 4.8% 95.9%;
+  --secondary-foreground: 240 5.9% 10%;
+  --muted: 240 4.8% 95.9%;
+  --muted-foreground: 240 3.8% 46.1%;
+  --accent: 240 4.8% 95.9%;
+  --accent-foreground: 240 5.9% 10%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 98%;
+  --success: 142 71% 29%;
+  --border: 240 5.9% 90%;
+  --input: 240 5.9% 90%;
+  --ring: 12 88% 40%;
+  --radius: 0.5rem;
+  --lr-focus: rgb(232, 98, 16);
+  --lr-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+:root[data-lr-theme="dark"] #readTools,
+:root.lr-extension-page[data-lr-theme="dark"] {
+  --background: 240 6% 8%;
+  --foreground: 0 0% 95%;
+  --card: 240 6% 10%;
+  --popover: 240 6% 11%;
+  --popover-foreground: 0 0% 95%;
+  --primary: 14 82% 55%;
+  --primary-foreground: 0 0% 100%;
+  --open-bg: 14 82% 55%;
+  --open-border: 14 82% 58%;
+  --open-foreground: 14 90% 64%;
+  --fill-bg: 14 82% 45%;
+  --fill-ring: 0 0% 92%;
+  --done-foreground: 14 90% 62%;
+  --secondary: 240 4% 16%;
+  --secondary-foreground: 0 0% 95%;
+  --muted: 240 4% 16%;
+  --muted-foreground: 240 5% 65%;
+  --accent: 240 4% 18%;
+  --accent-foreground: 0 0% 95%;
+  --destructive: 0 72% 58%;
+  --success: 142 60% 45%;
+  --border: 240 4% 20%;
+  --input: 240 4% 22%;
+  --ring: 14 82% 55%;
+  --lr-focus: rgb(255, 150, 60);
+}

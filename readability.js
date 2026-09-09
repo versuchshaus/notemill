@@ -2510,7 +2510,9 @@ var readability = {
             if (onclick) { a.addEventListener("click", function (e) { e.preventDefault(); onclick(); }); }
             return a;
         }
-        function openOptions() { request({type: "open-options"}, function () {}); }
+        function openOptions(section) {
+            request({type: "open-options", at: section || "notion"}, function () {});
+        }
 
         /* Ask the service worker; normalise every failure into {ok:false, error, code}. */
         function request(msg, cb) {
@@ -2548,7 +2550,9 @@ var readability = {
                 resp.code === "no-permission" || resp.code === "unknown") {
                 /* "unknown" means a stale background script; opening the options
                    page repairs it, because that page checks and reloads. */
-                show([resp.error + " ", link("open options", null, openOptions)], 0, "error");
+                show([resp.error + " ", link("open options", null, function () {
+                    openOptions(resp.code === "no-target" ? "destinations" : "notion");
+                })], 0, "error");
             } else {
                 show([resp.error], 0, "error");
             }

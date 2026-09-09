@@ -43,6 +43,7 @@ def status(inner, cls=""):
 
 A = lambda t, cls="": "<a href='#' role='button' class='%s'>%s</a>" % (cls, t)
 L = lambda t: "<span class='lr-label'>%s</span>" % t
+I = lambda name, cls="": "<svg class='lr-icon %s' viewBox='0 0 24 24' aria-hidden='true'>%s</svg>" % (cls, ICONS[name])
 
 CASES = [
   ("rest, Send to Notion armed", row1(armed="Send to Notion") + status("")),
@@ -54,7 +55,10 @@ CASES = [
   ("Copy Markdown done", row1(open_="Copy Markdown") + status(" copied 18432 chars", "is-done")),
   ("Print (native dialog supplies feedback)", row1() + status("")),
   ("Notion saved", row1(open_="Send to Notion") + status(" Saved to Notion (tags → Tags) " + A("open it"), "is-done")),
-  ("error", row1() + status(" Connect Notion in the extension options first. " + A("open options"))),
+  ("loading destinations", row1(open_="Send to Notion") + status(
+      I("loader", "spin") + "Loading Notion destinations…", "is-busy")),
+  ("error (stays until dismissed or retried)", row1(open_="Send to Notion") + status(
+      I("alert") + "Connect Notion in the extension options first. " + A("open options"), "is-error")),
 ]
 
 def page(theme):

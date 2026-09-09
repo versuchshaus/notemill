@@ -32,6 +32,7 @@ var dbg = (typeof console !== 'undefined') ? function(s) {
  *   - Astra: shared toolbar row/focus lifecycle, editable-key guards, and
  *     generation checks preventing stale asynchronous feedback
  *   - Astra: owner-aligned feedback with a full-width wrapped-toolbar fallback
+ *   - Astra: explicit busy/error states and persistent actionable errors
 **/
 var readability = {
     version:                '1.7.1',
@@ -2328,15 +2329,22 @@ var readability = {
         return generation === readability.rowGeneration;
     },
 
-    writeRow: function (owner, nodes, ms, done, generation) {
+    writeRow: function (owner, nodes, ms, kind, generation) {
         if (generation !== undefined && !readability.rowIsCurrent(generation)) { return; }
         var status = document.getElementById("readMarkdownStatus");
         if (!status) { return; }
         window.clearTimeout(status._timer);
         var lostFocus = status.contains(document.activeElement) ||
             (readability.armed && status.contains(readability.armed));
-        status.className = done ? "lr-row is-done" : "lr-row";
+        // Keep boolean success callers compatible; all other states are explicit.
+        kind = kind === true ? "done" : kind;
+        if (kind !== "done" && kind !== "busy" && kind !== "error") { kind = ""; }
+        status.className = "lr-row" + (kind ? " is-" + kind : "");
         status.textContent = "";
+        if (kind === "busy" || kind === "error") {
+            status.appendChild(readability.icon(kind === "busy" ? "loader" : "alert",
+                                               kind === "busy" ? "spin" : ""));
+        }
         nodes.forEach(function (node) {
             status.appendChild(typeof node === "string" ? document.createTextNode(node) : node);
         });
@@ -2489,11 +2497,9 @@ var readability = {
         if (!content || !status) { return; }
         var generation = readability.beginRow();
 
-        /* done marks the row as a result: bold and orange. Set on every call,
-           because otherwise the class outlives the line it belonged to and
-           the next prompt inherits a shout. */
-        function show(nodes, ms, done) {
-            readability.writeRow("send-notion", nodes, ms, done, generation);
+        /* Each write replaces the state as well as the content. */
+        function show(nodes, ms, kind) {
+            readability.writeRow("send-notion", nodes, ms, kind, generation);
         }
         function link(label, href, onclick, cls) {
             var a = document.createElement("a");
@@ -2542,9 +2548,9 @@ var readability = {
                 resp.code === "no-permission" || resp.code === "unknown") {
                 /* "unknown" means a stale background script; opening the options
                    page repairs it, because that page checks and reloads. */
-                show([resp.error + " ", link("open options", null, openOptions)], 15000);
+                show([resp.error + " ", link("open options", null, openOptions)], 0, "error");
             } else {
-                show([resp.error], 10000);
+                show([resp.error], 0, "error");
             }
         }
 
@@ -2770,7 +2776,7 @@ var readability = {
                 received(warm.resp);
                 return;
             }
-            show([refresh ? "Refreshing Notion destinations…" : "Loading Notion destinations…"]);
+            show([refresh ? "Refreshing Notion destinations…" : "Loading Notion destinations…"], 0, "busy");
             request({type: "notion-targets", refresh: !!refresh}, function (resp) {
                 if (resp && resp.ok) { readability.notionCache = {at: Date.now(), resp: resp}; }
                 received(resp);
@@ -2781,7 +2787,7 @@ var readability = {
                 if (!resp.targets || !resp.targets.length) {
                     show(["No Notion pages shared with the extension yet ",
                           link("refresh list", null, function () { ask(true); }),
-                          link("options", null, openOptions)], 20000);
+                          link("options", null, openOptions)], 0, "error");
                     return;
                 }
                 choose(resp);
@@ -2790,7 +2796,7 @@ var readability = {
 
         /* Step 3: send. */
         function send(target, tagText) {
-            show(["Sending to Notion…"]);
+            show(["Sending to Notion…"], 0, "busy");
             var h1    = document.querySelector("#readOverlay h1, #readInner h1");
             var title = ((h1 ? h1.textContent : document.title) || "Untitled").trim();
             var tagList = (tagText || "").split(",").map(function (t) { return t.trim(); })
@@ -3056,8 +3062,8 @@ var readability = {
         var status = document.getElementById("readMarkdownStatus");
         if (!status) { return; }
 
-        function show(nodes, ms, done) {
-            readability.writeRow("save-markdown", nodes, ms, done, generation);
+        function show(nodes, ms, kind) {
+            readability.writeRow("save-markdown", nodes, ms, kind, generation);
         }
 
         function button(label, onclick, cls) {
@@ -3086,7 +3092,7 @@ var readability = {
 
             function deliver(images) {
                 // A committed save continues, but its stale UI stays dismissed.
-                show([folder ? "saving into " + folder + "…" : "saving…"]);
+                show([folder ? "saving into " + folder + "…" : "saving…"], 0, "busy");
                 readability.notionMessage({type: "save-bundle", folder: name,
                                            markdown: bundled, images: images}, function (resp) {
                     if (resp && resp.ok) {
@@ -3096,13 +3102,13 @@ var readability = {
                                              (resp.failed === 1 ? "" : "s") + " could not be read)" : "")],
                              readability.DONE_MS, true);
                     } else {
-                        show([(resp && resp.error) || "could not save"], 12000);
+                        show([(resp && resp.error) || "could not save"], 0, "error");
                     }
                 });
             }
 
             if (!folder || !pack.list.length) { deliver(pack.list); return; }
-            show(["reading " + pack.list.length + " image" + (pack.list.length === 1 ? "" : "s") + "…"]);
+            show(["reading " + pack.list.length + " image" + (pack.list.length === 1 ? "" : "s") + "…"], 0, "busy");
             readability.fetchImageBytes(pack.list, deliver);
         }
 
@@ -3123,7 +3129,7 @@ var readability = {
         }
 
         function pick() {
-            show(["waiting for the folder you choose…"]);
+            show(["waiting for the folder you choose…"], 0, "busy");
             readability.notionMessage({type: "pick-folder"}, function (resp) {
                 if (!readability.rowIsCurrent(generation)) { return; }
                 if (resp && resp.ok && resp.folder) { offer(resp.folder); return; }
@@ -3134,13 +3140,13 @@ var readability = {
                     });
                     return;
                 }
-                show([(resp && resp.error) || "could not open the folder chooser"], 10000);
+                show([(resp && resp.error) || "could not open the folder chooser"], 0, "error");
             });
         }
 
-        show(["checking where to save…"]);
+        show(["checking where to save…"], 0, "busy");
         readability.notionMessage({type: "save-target"}, function (target) {
-            if (!target || !target.ok) { show([target && target.error ? target.error : "could not reach the extension"], 10000); return; }
+            if (!target || !target.ok) { show([target && target.error ? target.error : "could not reach the extension"], 0, "error"); return; }
             offer(target.folder);
         });
     },
@@ -3218,11 +3224,13 @@ var readability = {
 
         function say(msg, done) {
             if (status) {
-                readability.writeRow(owner, [msg], done ? readability.DONE_MS : 4000, done, generation);
+                readability.writeRow(owner, [msg], done ? readability.DONE_MS : 0,
+                                     done ? "done" : "error", generation);
             }
         }
 
         if (how === "copy") {
+            readability.writeRow(owner, ["Copying Markdown…"], 0, "busy", generation);
             if (window.navigator.clipboard && window.navigator.clipboard.writeText) {
                 window.navigator.clipboard.writeText(md).then(function () {
                     say("copied " + md.length + " chars", true);

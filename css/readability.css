@@ -876,13 +876,23 @@ th {
   max-width: 100%;
 }
 
-/* A finished save is the one line in this row that reports rather than asks,
-   and the one the reader actually came back for - so it is the only one that
-   gets weight and the brand orange. Prompts and errors stay quiet: muted for
-   a question, --destructive for a failure. */
+/* Prompts are quiet; work has a spinner, errors an alert icon and destructive
+   colour, and completed work keeps the brand orange. Text conveys the meaning
+   too, so colour and motion are never the only signals. */
 #readMarkdownStatus.is-done {
   color: hsl(var(--done-foreground));
   font-weight: 650;
+}
+
+#readMarkdownStatus.is-error {
+  color: hsl(var(--destructive));
+  font-weight: 600;
+}
+
+#readMarkdownStatus > .lr-icon {
+  flex: none;
+  align-self: flex-start;
+  margin-top: 0.15em;
 }
 
 #readTools .lr-msg {

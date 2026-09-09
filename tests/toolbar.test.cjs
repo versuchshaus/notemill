@@ -22,6 +22,7 @@ function fixture() {
   const reader = context.module.exports;
   reader.openPanel = id => { reader.owner = id; };
   reader.arm = el => { reader.armed = el; };
+  reader.icon = (name, extra) => ({icon: name, extra});
   return {reader, row, buttons, document, timers};
 }
 
@@ -99,6 +100,38 @@ test('even a queued old expiry cannot dismiss a newer interaction', () => {
   expire();
   assert.equal(reader.owner, 'save-markdown');
   assert.equal(row.children[0].text, 'Choose');
+});
+
+test('busy, error, prompt and done states replace one another cleanly', () => {
+  const {reader, row, timers} = fixture();
+  const generation = reader.beginRow();
+  reader.writeRow('send-notion', ['Loading'], 0, 'busy', generation);
+  assert.equal(row.className, 'lr-row is-busy');
+  assert.equal(row.children[0].icon, 'loader');
+  assert.equal(row.children[0].extra, 'spin');
+  reader.writeRow('send-notion', ['Failure'], 0, 'error', generation);
+  assert.equal(row.className, 'lr-row is-error');
+  assert.equal(row.children[0].icon, 'alert');
+  assert.equal(timers.size, 0);
+  assert.equal(reader.owner, 'send-notion');
+  reader.writeRow('send-notion', ['Choose'], 0, undefined, generation);
+  assert.equal(row.className, 'lr-row');
+  assert.equal(row.children.length, 1);
+  reader.writeRow('send-notion', ['Saved'], 100, 'done', generation);
+  assert.equal(row.className, 'lr-row is-done');
+  assert.equal(row.children.length, 1);
+  assert.equal(timers.size, 1);
+});
+
+test('late errors cannot replace a current busy row', () => {
+  const {reader, row} = fixture();
+  const old = reader.beginRow();
+  const current = reader.beginRow();
+  reader.writeRow('copy-markdown', ['Copying'], 0, 'busy', current);
+  reader.writeRow('send-notion', ['Old error'], 0, 'error', old);
+  assert.equal(row.className, 'lr-row is-busy');
+  assert.equal(row.children[0].icon, 'loader');
+  assert.equal(reader.owner, 'copy-markdown');
 });
 
 test('legacy Space paging excludes editing, toolbar and handled events', () => {

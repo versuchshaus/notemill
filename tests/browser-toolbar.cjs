@@ -208,6 +208,51 @@ const root = path.resolve(__dirname, '..');
     await evaluate(`readability.closeRow(false); readability.openPanel('print-page');`);
     assert.equal(await evaluate(`getComputedStyle(document.getElementById('print-page'),'::after').display`), 'none');
     console.log('PASS empty feedback never draws an arrow');
+
+    await evaluate(`document.body.dir = 'ltr'; readability.closeRow(false);
+      window.holdType = 'save-target'; document.getElementById('save-markdown').click();`);
+    assert.equal(await evaluate(`document.getElementById('readMarkdownStatus').className`), 'lr-row is-busy');
+    assert.equal(await evaluate(`document.querySelector('#readMarkdownStatus .spin').getAttribute('aria-hidden')`), 'true');
+    await call('Emulation.setEmulatedMedia', {features:[{name:'prefers-reduced-motion',value:'reduce'}]});
+    assert.ok(await evaluate(`parseFloat(getComputedStyle(document.querySelector('#readMarkdownStatus .spin')).animationDuration) <= 0.001`));
+    console.log('PASS busy feedback has a decorative spinner and respects reduced motion');
+
+    await evaluate(`window.recordedTimers = []; window.nativeSetTimeout = window.setTimeout;
+      window.setTimeout = (fn, ms, ...args) => { window.recordedTimers.push(ms); return window.nativeSetTimeout(fn, ms, ...args); };
+      window.deferred.shift().cb({ok:false,error:'Folder access failed — choose it again.'});`);
+    assert.equal(await evaluate(`document.getElementById('readMarkdownStatus').className`), 'lr-row is-error');
+    assert.equal(await evaluate(`document.querySelector('#readTools a.open').id`), 'save-markdown');
+    assert.equal(await evaluate(`!!document.querySelector('#readMarkdownStatus svg:not(.spin)')`), true);
+    assert.equal(await evaluate('window.recordedTimers.some(ms => ms > 1000)'), false);
+    for (const theme of ['light', 'dark']) {
+      await evaluate(`readability.applyTheme(${JSON.stringify(theme)})`);
+      const shot = await call('Page.captureScreenshot', {format:'png'});
+      fs.writeFileSync(path.join(screenshotDir, `error-${theme}.png`), Buffer.from(shot.data, 'base64'));
+    }
+    await key('Escape', 'Escape', 27);
+    assert.equal(await evaluate(`document.getElementById('readMarkdownStatus').textContent`), '');
+    assert.equal(await evaluate('document.activeElement.id'), 'save-markdown');
+    console.log('PASS folder errors keep their owner, have no expiry timer and dismiss with Escape');
+
+    await evaluate(`window.holdType = 'notion-targets'; readability.notionCache = null;
+      document.getElementById('send-notion').click(); window.recordedTimers = [];
+      window.deferred.shift().cb({ok:false,code:'not-connected',error:'Connect Notion first.'});`);
+    assert.equal(await evaluate(`document.getElementById('readMarkdownStatus').className`), 'lr-row is-error');
+    assert.equal(await evaluate(`document.querySelector('#readMarkdownStatus a').textContent`), 'open options');
+    assert.equal(await evaluate('window.recordedTimers.some(ms => ms > 1000)'), false);
+    await evaluate(`window.holdType = ''; document.getElementById('send-notion').click();`);
+    assert.equal(await evaluate(`document.getElementById('readMarkdownStatus').className`), 'lr-row');
+    assert.equal(await evaluate(`!!document.querySelector('#readMarkdownStatus > svg')`), false);
+    console.log('PASS actionable Notion errors persist and retry clears error styling/icon');
+
+    await evaluate(`Object.defineProperty(navigator, 'clipboard', {configurable:true,value:{
+      writeText: () => Promise.reject(new Error('Blocked for test'))}});
+      document.getElementById('copy-markdown').click();`);
+    assert.equal(await evaluate(`document.getElementById('readMarkdownStatus').className`), 'lr-row is-error');
+    assert.equal(await evaluate(`document.querySelector('#readTools a.open').id`), 'copy-markdown');
+    assert.ok(await evaluate(`document.getElementById('readMarkdownStatus').textContent.includes('use Save .md')`));
+    await evaluate(`window.setTimeout = window.nativeSetTimeout;`);
+    console.log('PASS clipboard failures show owned error feedback with a recovery hint');
   } finally {
     await call('Page.close');
     ws.close();

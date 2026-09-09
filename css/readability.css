@@ -76,6 +76,7 @@
   --lr-code-border: rgb(226, 228, 232);
   --lr-inline-bg:   rgb(239, 241, 244);
   --lr-rule:        rgb(228, 228, 232);
+  --lr-focus:       rgb(232, 98, 16);
   --lr-dim:         1;
 }
 
@@ -89,6 +90,7 @@
   --lr-code-border: rgb(48, 48, 54);
   --lr-inline-bg:   rgb(34, 34, 39);
   --lr-rule:        rgb(48, 48, 54);
+  --lr-focus:       rgb(255, 150, 60);
   --lr-dim:         0.88;   /* photographs are glaring on a dark page */
 }
 
@@ -457,6 +459,20 @@ th {
   --popover-foreground:  240 10% 3.9%;
   --primary:             12 88% 40%;      /* the reader's rust, as the brand */
   --primary-foreground:  0 0% 98%;
+  /* The open trigger carries a solid fill and white text, so it holds its
+     own against the panel it opens. Its own tokens, not --primary, because
+     dark needs a deeper fill (white 13px text clears 4.5:1 only below ~46%
+     lightness) and a lighter rim to draw the edge the dark card cannot. */
+  /* Two orange treatments, one meaning each: the trigger that owns the open
+     panel is outlined and tinted, the button that commits is filled. Which
+     way round matters - filling the trigger put the loudest thing in the card
+     on the button the reader had already pressed. */
+  --open-bg:             15 89% 42%;   /* tinted at 14%, see a.open */
+  --open-border:         15 89% 46%;
+  --open-foreground:     15 89% 36%;   /* label on that tint, 5.6:1 */
+  --fill-bg:             15 89% 42%;   /* the filled Save; white text 4.8:1 */
+  --fill-ring:           22 87% 49%;   /* a ring that reads against a fill */
+  --done-foreground:     15 89% 40%;   /* the result line, 5.5:1 on the card */
   --secondary:           240 4.8% 95.9%;
   --secondary-foreground:240 5.9% 10%;
   --muted:               240 4.8% 95.9%;
@@ -480,6 +496,12 @@ th {
   --popover-foreground:  0 0% 95%;
   --primary:             14 82% 55%;
   --primary-foreground:  0 0% 100%;
+  --open-bg:             14 82% 55%;
+  --open-border:         14 82% 58%;
+  --open-foreground:     14 90% 64%;
+  --fill-bg:             14 82% 45%;
+  --fill-ring:           0 0% 92%;
+  --done-foreground:     14 90% 62%;
   --secondary:           240 4% 16%;
   --secondary-foreground:0 0% 95%;
   --muted:               240 4% 16%;
@@ -548,16 +570,30 @@ th {
 
 /* ---- buttons ------------------------------------------------------------
 
-   The states carry the whole model:
-     rest      black on white
-     hover     red outline - the same treatment as keyboard focus, so pointer
-               and keyboard tell the reader the same thing
-     current   the button last pressed, filled red
-     previous  the one pressed before it, filled red at 60% - a one-step trail
-               of what just happened, rather than a permanent highlight
+   Three states, three meanings, no overlap. An earlier version used the same
+   red outline for hover, for keyboard focus and for "Enter will press this",
+   and additionally kept the last two buttons pressed filled in red - which
+   showed *history* and stole the filled treatment from the state that needs
+   it. All of that is gone.
+
+     rest     black on white, thin border
+     hover    a quiet fill; the pointer needs no announcement
+     focus    an orange ring, and only ever on one element. Since the reader
+              focuses whatever Enter would press, focus and "armed" are the
+              same state and share it
+     open     outlined and warmly tinted, with an orange label and a wide
+              arrow at the row it owns. Exactly one button can be open,
+              because there is one row
+     primary  the filled one. Save, and nothing else
+
+   Three orange treatments, told apart by weight of ink rather than by hue:
+   a ring is focus, an outline with a tint is where you are, a fill is what
+   commits. Where two land on one button - Save is armed the moment a panel
+   opens - the ring sits outside a 1px card-coloured gap so both survive.
 --------------------------------------------------------------------------- */
 
 #readTools a {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -578,52 +614,100 @@ th {
   user-select: none;
   transition: background-color 150ms ease, color 150ms ease,
               border-color 150ms ease, box-shadow 150ms ease,
-              opacity 200ms ease, transform 100ms ease;
+              transform 100ms ease;
 }
 
-#readTools a:hover,
-#readTools a:focus-visible,
-#readTools a.armed {
-  outline: none;
-  border-color: hsl(var(--ring));
-  box-shadow: 0 0 0 1px hsl(var(--ring));
+#readTools a:hover {
+  background-color: hsl(var(--secondary));
+  border-color: hsl(var(--border));
 }
 
-/* Pressing gives way slightly: the surface acknowledges the click itself. */
 #readTools a:active {
   transform: scale(0.97);
 }
 
-#readTools a.is-current,
-#readTools a.is-previous {
-  background-color: hsl(var(--primary));
-  border-color: hsl(var(--primary));
+/* The committing action is the filled one, and the only filled one, so
+   nothing in the card competes with it. */
+#readTools a.primary {
+  background-color: hsl(var(--fill-bg));
+  border-color: hsl(var(--fill-bg));
   color: hsl(var(--primary-foreground));
+  font-weight: 650;
 }
 
-#readTools a.is-previous {
-  opacity: 0.6;
+/* Focus is the only ring in the bar, which is what makes it unambiguous
+   now that it is orange rather than blue. */
+#readTools a:focus-visible,
+#readTools a.armed,
+#readTools select:focus-visible,
+#readTools input[type="text"]:focus-visible {
+  outline: none;
+  border-color: var(--lr-focus);
+  box-shadow: 0 0 0 1px var(--lr-focus);
 }
 
-#readTools a.is-current:hover,
-#readTools a.is-previous:hover,
-#readTools a.is-current:focus-visible,
-#readTools a.is-previous:focus-visible,
-#readTools a.is-current.armed {
-  border-color: hsl(var(--ring));
-  box-shadow: 0 0 0 1px hsl(var(--background)), 0 0 0 3px hsl(var(--ring) / 0.55);
+/* Open: this button owns the row below and says so with an orange outline, a
+   warm tint and an orange label - not a fill. The fill belongs to Save, the
+   button that actually commits; this one only marks where the row came from,
+   and the arrow does the pointing. */
+#readTools a.open {
+  background-color: hsl(var(--open-bg) / 0.14);
+  border-color: hsl(var(--open-border));
+  color: hsl(var(--open-foreground));
+  font-weight: 650;
+}
+
+#readTools a.open::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  /* 24 x 8, up from 10 x 5. At the old size this read as a nick in the
+     button's bottom edge rather than as a pointer, and the pointer is the
+     whole of the claim that this button owns the row underneath. The 8px
+     height is the row gap exactly: taller lands on the controls below. */
+  margin-left: -12px;
+  border-style: solid;
+  border-width: 8px 12px 0;
+  /* The outline's colour, not the tint's: 14% orange in a triangle is not
+     there at all. */
+  border-color: hsl(var(--open-border)) transparent transparent;
+}
+
+#readTools a.open:focus-visible,
+#readTools a.open.armed {
+  box-shadow: 0 0 0 1px hsl(var(--card)), 0 0 0 3px var(--lr-focus);
+}
+
+/* A filled button cannot wear the same ring as an empty one - orange on
+   orange is mush. Same gap treatment, but a rim that contrasts with the
+   fill: the brand orange against a white card, a light rim against black. */
+#readTools a.primary:focus-visible,
+#readTools a.primary.armed {
+  border-color: hsl(var(--fill-ring));
+  box-shadow: 0 0 0 1px hsl(var(--card)), 0 0 0 3px hsl(var(--fill-ring));
+}
+
+/* Icon-only: square, and set apart from the actions it does not belong with. */
+#readTools a.icon-only {
+  width: 2.25em;
+  padding: 0;
+}
+
+#readTools a.apart {
+  margin-left: 0.5rem;
+  color: hsl(var(--muted-foreground));
+}
+
+#readTools a.apart:hover {
+  color: hsl(var(--foreground));
 }
 
 #readTools a[aria-disabled="true"] {
   opacity: 0.4;
   pointer-events: none;
-}
-
-#readTools select:focus-visible,
-#readTools input[type="text"]:focus-visible {
-  outline: none;
-  border-color: hsl(var(--ring));
-  box-shadow: 0 0 0 1px hsl(var(--ring));
 }
 
 #readTools .lr-icon {
@@ -648,6 +732,18 @@ th {
 }
 
 /* ---- form controls ------------------------------------------------------ */
+
+/* The chosen folder, shown as a value rather than an editable field. */
+#readTools .lr-value {
+  font-family: var(--lr-font);
+  font-size: var(--lr-text);
+  color: hsl(var(--foreground));
+  padding: 0 0.15em;
+  white-space: nowrap;
+  max-width: 18em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 #readTools .lr-label {
   font-family: var(--lr-font);
@@ -745,6 +841,24 @@ th {
 
 #readMarkdownStatus:empty {
   display: none;
+}
+
+/* The card right-aligns its rows against the page edge, which parked a
+   short panel row - Save included - under the far right of the bar, as far
+   from the trigger that opened it as the card allows. The panel row starts
+   at the left instead, so Save lands under the buttons, not off past them. */
+#readTools #readMarkdownStatus {
+  align-self: flex-start;
+  justify-content: flex-start;
+}
+
+/* A finished save is the one line in this row that reports rather than asks,
+   and the one the reader actually came back for - so it is the only one that
+   gets weight and the brand orange. Prompts and errors stay quiet: muted for
+   a question, --destructive for a failure. */
+#readMarkdownStatus.is-done {
+  color: hsl(var(--done-foreground));
+  font-weight: 650;
 }
 
 #readTools .lr-msg {

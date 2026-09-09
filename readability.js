@@ -184,8 +184,23 @@ var readability = {
           "copy-markdown": function () { readability.exportMarkdown("copy"); },
           "save-markdown": function () { readability.exportMarkdown("save"); },
           "send-notion":   function () { readability.sendToNotion(); },
-          "print-page":    function () { window.print(); },
-          "reload-page":   function () { window.location.reload(); }
+          /* Print and Copy open no panel, but the button still has to show
+             which action ran - so it lights the same way and lets go on its
+             own. print() blocks until the dialog closes in Chromium, so the
+             timer only starts once the reader is back on the page. */
+          "print-page":    function () {
+            readability.openPanel("print-page");
+            window.print();
+            window.setTimeout(function () {
+              var el = document.getElementById("print-page");
+              /* Not ours any more if the reader has pressed something else. */
+              if (el && el.classList.contains("open")) { readability.openPanel(null); }
+            }, 2500);
+          },
+          "reload-page":   function () { window.location.reload(); },
+          /* The options page is otherwise buried behind Details on the
+             browser's own extensions page. */
+          "open-settings": function () { readability.notionMessage({type: "open-options"}, function () {}); }
         };
 
         for (var id in actions) {
@@ -209,7 +224,9 @@ var readability = {
 
           var status = document.getElementById("readMarkdownStatus");
           if (status && status.textContent.replace(/\s+/g, "") !== "") {
+            status.className = "lr-row";
             status.textContent = "";
+            readability.openPanel(null);
             readability.arm(document.getElementById("send-notion"));
             e.preventDefault();
             return;
@@ -252,19 +269,6 @@ var readability = {
             }, {passive: true});
             update();
           }());
-          /* Which button was last pressed, and which before it. Delegated, so
-             the controls the Notion flow inserts take part as well. */
-          bar.addEventListener("click", function (e) {
-            var el = e.target && e.target.closest ? e.target.closest("a") : null;
-            if (!el || !bar.contains(el)) { return; }
-            var current = bar.querySelector("a.is-current");
-            if (current === el) { return; }
-            var previous = bar.querySelector("a.is-previous");
-            if (previous) { previous.classList.remove("is-previous"); }
-            if (current)  { current.classList.remove("is-current"); current.classList.add("is-previous"); }
-            el.classList.add("is-current");
-          }, true);
-
           bar.addEventListener("keydown", function (e) {
             if (e.key !== " " && e.key !== "Spacebar") { return; }
             if (!e.target || e.target.tagName !== "A") { return; }
@@ -412,9 +416,12 @@ var readability = {
            nothing on sites that send one (Medium among them). Every button is
            bound with addEventListener after the bar is inserted. */
         function btn(id, cls, iconName, label, title) {
-            return "<a href='#' role='button' id='" + id + "' class='" + cls + "' title='" + title + "'>" +
+            /* No label means an icon-only button, which needs the label as an
+               accessible name instead. */
+            return "<a href='#' role='button' id='" + id + "' class='" + cls + (label ? "" : " icon-only") +
+                   "' title='" + title + "'" + (label ? "" : " aria-label='" + title + "'") + ">" +
                    "<svg class='lr-icon' viewBox='0 0 24 24' aria-hidden='true'>" + readability.ICONS[iconName] + "</svg>" +
-                   "<span class='lr-text'>" + label + "</span></a>";
+                   (label ? "<span class='lr-text'>" + label + "</span>" : "") + "</a>";
         }
 
         /* Two explicit rows. Wrapping a single flex row instead would make the
@@ -428,6 +435,7 @@ var readability = {
             btn("copy-markdown", "",        "copy",     "Copy Markdown",        "Copy the article as Markdown") +
             btn("print-page",    "",        "printer",  "Print",                "Print this article") +
             btn("reload-page",   "",        "rotate",   "Exit Reader",          "Reload the original page") +
+            btn("open-settings", "apart",   "settings",  "",                     "Notemill settings") +
           "</span>" +
           "<span id='readMarkdownStatus' class='lr-row' role='status' aria-live='polite'></span>";
 
@@ -2250,6 +2258,29 @@ var readability = {
         }
     },
 
+    /**
+     * Mark the button whose panel occupies the status row, or clear it.
+     * There is one row, so at most one button can be open - which is what
+     * makes the filled treatment unambiguous.
+     *
+     * @param String|null id of the trigger
+     * @return void
+    **/
+    /* How long a finished save stays on screen. Long, on purpose: the reader
+       is usually back in the article by the time the save lands, and a line
+       that has gone by the time they look up is the same as no line at all.
+       Any next action clears it early. */
+    DONE_MS: 45000,
+
+    openPanel: function (id) {
+        var bar = document.getElementById("readTools");
+        if (!bar) { return; }
+        var buttons = bar.querySelectorAll("a");
+        for (var i = 0; i < buttons.length; i += 1) {
+            buttons[i].classList.toggle("open", !!id && buttons[i].id === id);
+        }
+    },
+
     armed: null,
 
     /**
@@ -2372,13 +2403,22 @@ var readability = {
         var status  = document.getElementById("readMarkdownStatus");
         if (!content || !status) { return; }
 
-        function show(nodes, ms) {
+        /* done marks the row as a result: bold and orange. Set on every call,
+           because otherwise the class outlives the line it belonged to and
+           the next prompt inherits a shout. */
+        function show(nodes, ms, done) {
             window.clearTimeout(status._timer);
+            status.className = done ? "lr-row is-done" : "lr-row";
             status.textContent = " ";
             for (var i = 0; i < nodes.length; i += 1) {
                 status.appendChild(typeof nodes[i] === "string" ? document.createTextNode(nodes[i]) : nodes[i]);
             }
-            if (ms) { status._timer = window.setTimeout(function () { status.textContent = ""; }, ms); }
+            if (ms) {
+                status._timer = window.setTimeout(function () {
+                    status.textContent = "";
+                    readability.openPanel(null);
+                }, ms);
+            }
         }
         function link(label, href, onclick, cls) {
             var a = document.createElement("a");
@@ -2418,7 +2458,10 @@ var readability = {
             }
         }
 
+        function done() { readability.openPanel(null); }
+
         function fail(resp) {
+            done();
             if (resp.code === "not-connected" || resp.code === "no-target" ||
                 resp.code === "no-permission" || resp.code === "unknown") {
                 /* "unknown" means a stale background script; opening the options
@@ -2628,10 +2671,16 @@ var readability = {
             sel.addEventListener("change", syncTags);
             syncTags();
 
-            var save = link("Save", null, commit);
+            /* Save leads the row, in both panels. It used to sit second from
+               the right, which put the button that commits diagonally across
+               the card from the button that opened the panel - press top left,
+               then travel to bottom right. Leading also lets the row read as
+               one sentence: Save - to: - <destination>. */
+            var save = link("Save", null, commit, "primary");
+            readability.openPanel("send-notion");
             show([save, toLabel, sel, tagLabel, box,
                   link("refresh list", null, function () { ask(true); }),
-                  link("cancel", null, function () { status.textContent = ""; })]);
+                  link("cancel", null, function () { done(); status.textContent = ""; })]);
             /* Enter again saves to the remembered destination. Tab from here
                reaches the destination and the tag field for anyone who wants
                to change them. */
@@ -2675,13 +2724,18 @@ var readability = {
                            blocks: readability.toNotionBlocks(content)};
             request({type: "notion-send", article: article, target: target, tagText: tagText || ""},
                     function (resp) {
+                done();
                 if (resp.ok) {
                     var note = resp.tagProperty ? " (tags → " + resp.tagProperty : "";
                     if (note && resp.createdTags && resp.createdTags.length) {
                         note += ", " + resp.createdTags.length + " new";
                     }
                     if (note) { note += ")"; }
-                    show(["Saved to Notion" + note + " ", link("open it", resp.url)], 20000);
+                    show(["Saved to Notion" + note + " ", link("open it", resp.url)],
+                         readability.DONE_MS, true);
+                    /* done() closed the panel; the result row that replaced it
+                       belongs to the same button, so light it again. */
+                    readability.openPanel("send-notion");
                 } else { fail(resp); }
             });
         }
@@ -2930,14 +2984,20 @@ var readability = {
         var status = document.getElementById("readMarkdownStatus");
         if (!status) { return; }
 
-        function show(nodes, ms) {
+        function show(nodes, ms, done) {
             window.clearTimeout(status._timer);
+            status.className = done ? "lr-row is-done" : "lr-row";
             status.textContent = "";
             for (var i = 0; i < nodes.length; i += 1) {
                 status.appendChild(typeof nodes[i] === "string"
                     ? document.createTextNode(nodes[i]) : nodes[i]);
             }
-            if (ms) { status._timer = window.setTimeout(function () { status.textContent = ""; }, ms); }
+            if (ms) {
+                status._timer = window.setTimeout(function () {
+                    status.textContent = "";
+                    readability.openPanel(null);
+                }, ms);
+            }
         }
 
         function button(label, onclick, cls) {
@@ -2965,6 +3025,7 @@ var readability = {
             var bundled = readability.toMarkdown(content, function (url) { return pack.map[url]; });
 
             function deliver(images) {
+                readability.openPanel("save-markdown");
                 show([folder ? "saving into " + folder + "…" : "saving…"]);
                 readability.notionMessage({type: "save-bundle", folder: name,
                                            markdown: bundled, images: images}, function (resp) {
@@ -2972,7 +3033,8 @@ var readability = {
                         show(["saved " + resp.saved + " file" + (resp.saved === 1 ? "" : "s") +
                               " to " + name + (resp.into ? " in " + resp.into : " in Downloads") +
                               (resp.failed ? " (" + resp.failed + " image" +
-                                             (resp.failed === 1 ? "" : "s") + " could not be read)" : "")], 15000);
+                                             (resp.failed === 1 ? "" : "s") + " could not be read)" : "")],
+                             readability.DONE_MS, true);
                     } else {
                         show([(resp && resp.error) || "could not save"], 12000);
                     }
@@ -2985,11 +3047,19 @@ var readability = {
         }
 
         function offer(folder) {
-            var where = label(folder ? "Save to: " + folder : "Save to: Downloads folder");
+            /* "to:", not "Save to:": the Save button now sits immediately to
+               its left and would say the word twice. */
+            var where = label("to:");
+            var value = label(folder || "Downloads folder");
+            value.className = "lr-value";
             var go = button("Save", function () { save(folder); }, "primary");
-            show([where, go,
+            readability.openPanel("save-markdown");
+            show([go, where, value,
                   button(folder ? "change folder…" : "choose folder…", pick),
-                  button("cancel", function () { status.textContent = ""; })]);
+                  button("cancel", function () {
+                      readability.openPanel(null);
+                      status.textContent = "";
+                  })]);
             readability.arm(go);
         }
 
@@ -3079,18 +3149,29 @@ var readability = {
         var md     = readability.toMarkdown(content);
         var status = document.getElementById("readMarkdownStatus");
 
-        function say(msg) {
+        /* The row under the bar belongs to whichever button produced it, so
+           that button stays lit for as long as the row is up. Copy Markdown
+           has no panel to open but it does have a result, and that is the
+           same claim: this line came from here. */
+        var owner = how === "copy" ? "copy-markdown" : "save-markdown";
+
+        function say(msg, done) {
             if (status) {
+                readability.openPanel(owner);
                 window.clearTimeout(status._timer);
+                status.className = done ? "lr-row is-done" : "lr-row";
                 status.textContent = " " + msg;
-                status._timer = window.setTimeout(function () { status.textContent = ""; }, 2500);
+                status._timer = window.setTimeout(function () {
+                    status.textContent = "";
+                    readability.openPanel(null);
+                }, done ? readability.DONE_MS : 4000);
             }
         }
 
         if (how === "copy") {
             if (window.navigator.clipboard && window.navigator.clipboard.writeText) {
                 window.navigator.clipboard.writeText(md).then(function () {
-                    say("copied " + md.length + " chars");
+                    say("copied " + md.length + " chars", true);
                 }, function () {
                     say("clipboard blocked - use Save .md");
                 });
@@ -3124,7 +3205,7 @@ var readability = {
         a.click();
         document.body.removeChild(a);
         window.setTimeout(function () { window.URL.revokeObjectURL(url); }, 10000);
-        say("saved " + name + ".md");
+        say("saved " + name + ".md", true);
     },
 
     /**

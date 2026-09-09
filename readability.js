@@ -184,18 +184,9 @@ var readability = {
           "copy-markdown": function () { readability.exportMarkdown("copy"); },
           "save-markdown": function () { readability.exportMarkdown("save"); },
           "send-notion":   function () { readability.sendToNotion(); },
-          /* Print and Copy open no panel, but the button still has to show
-             which action ran - so it lights the same way and lets go on its
-             own. print() blocks until the dialog closes in Chromium, so the
-             timer only starts once the reader is back on the page. */
+          /* The print dialog supplies feedback without claiming another action's row. */
           "print-page":    function () {
-            readability.openPanel("print-page");
             window.print();
-            window.setTimeout(function () {
-              var el = document.getElementById("print-page");
-              /* Not ours any more if the reader has pressed something else. */
-              if (el && el.classList.contains("open")) { readability.openPanel(null); }
-            }, 2500);
           },
           "reload-page":   function () { window.location.reload(); },
           /* The options page is otherwise buried behind Details on the
@@ -224,10 +215,7 @@ var readability = {
 
           var status = document.getElementById("readMarkdownStatus");
           if (status && status.textContent.replace(/\s+/g, "") !== "") {
-            status.className = "lr-row";
-            status.textContent = "";
-            readability.openPanel(null);
-            readability.arm(document.getElementById("send-notion"));
+            readability.closeRow(true);
             e.preventDefault();
             return;
           }
@@ -335,7 +323,8 @@ var readability = {
 
         /** Smooth scrolling **/
         document.onkeydown = function(e) {
-            var code = (window.event) ? event.keyCode : e.keyCode;
+            if (readability.isEditingKey(e)) { return; }
+            var code = e.keyCode;
             if (code === 16) {
                 readability.reversePageScroll = true;
                 return;
@@ -2281,6 +2270,44 @@ var readability = {
         }
     },
 
+    // Astra: shared row lifecycle; timers never steal focus from the article.
+    isEditingKey: function (e) {
+        var t = e.target;
+        return !!(e.defaultPrevented || (t && ((t.closest && t.closest("#readTools")) ||
+            /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)));
+    },
+
+    writeRow: function (owner, nodes, ms, done) {
+        var status = document.getElementById("readMarkdownStatus");
+        if (!status) { return; }
+        window.clearTimeout(status._timer);
+        var lostFocus = status.contains(document.activeElement) ||
+            (readability.armed && status.contains(readability.armed));
+        status.className = done ? "lr-row is-done" : "lr-row";
+        status.textContent = "";
+        nodes.forEach(function (node) {
+            status.appendChild(typeof node === "string" ? document.createTextNode(node) : node);
+        });
+        status._owner = owner;
+        readability.openPanel(owner);
+        if (lostFocus) { readability.arm(document.getElementById(owner)); }
+        if (ms) { status._timer = window.setTimeout(function () { readability.closeRow(false); }, ms); }
+    },
+
+    closeRow: function (restoreFocus) {
+        var status = document.getElementById("readMarkdownStatus");
+        if (!status) { return; }
+        var owner = status._owner;
+        var lostFocus = status.contains(document.activeElement) ||
+            (readability.armed && status.contains(readability.armed));
+        window.clearTimeout(status._timer);
+        status.className = "lr-row";
+        status.textContent = "";
+        status._owner = null;
+        readability.openPanel(null);
+        if (restoreFocus || lostFocus) { readability.arm(document.getElementById(owner)); }
+    },
+
     armed: null,
 
     /**
@@ -2407,18 +2434,7 @@ var readability = {
            because otherwise the class outlives the line it belonged to and
            the next prompt inherits a shout. */
         function show(nodes, ms, done) {
-            window.clearTimeout(status._timer);
-            status.className = done ? "lr-row is-done" : "lr-row";
-            status.textContent = " ";
-            for (var i = 0; i < nodes.length; i += 1) {
-                status.appendChild(typeof nodes[i] === "string" ? document.createTextNode(nodes[i]) : nodes[i]);
-            }
-            if (ms) {
-                status._timer = window.setTimeout(function () {
-                    status.textContent = "";
-                    readability.openPanel(null);
-                }, ms);
-            }
+            readability.writeRow("send-notion", nodes, ms, done);
         }
         function link(label, href, onclick, cls) {
             var a = document.createElement("a");
@@ -2680,7 +2696,7 @@ var readability = {
             readability.openPanel("send-notion");
             show([save, toLabel, sel, tagLabel, box,
                   link("refresh list", null, function () { ask(true); }),
-                  link("cancel", null, function () { done(); status.textContent = ""; })]);
+                  link("cancel", null, function () { readability.closeRow(true); })]);
             /* Enter again saves to the remembered destination. Tab from here
                reaches the destination and the tag field for anyone who wants
                to change them. */
@@ -2985,19 +3001,7 @@ var readability = {
         if (!status) { return; }
 
         function show(nodes, ms, done) {
-            window.clearTimeout(status._timer);
-            status.className = done ? "lr-row is-done" : "lr-row";
-            status.textContent = "";
-            for (var i = 0; i < nodes.length; i += 1) {
-                status.appendChild(typeof nodes[i] === "string"
-                    ? document.createTextNode(nodes[i]) : nodes[i]);
-            }
-            if (ms) {
-                status._timer = window.setTimeout(function () {
-                    status.textContent = "";
-                    readability.openPanel(null);
-                }, ms);
-            }
+            readability.writeRow("save-markdown", nodes, ms, done);
         }
 
         function button(label, onclick, cls) {
@@ -3057,8 +3061,7 @@ var readability = {
             show([go, where, value,
                   button(folder ? "change folder…" : "choose folder…", pick),
                   button("cancel", function () {
-                      readability.openPanel(null);
-                      status.textContent = "";
+                      readability.closeRow(true);
                   })]);
             readability.arm(go);
         }
@@ -3157,14 +3160,7 @@ var readability = {
 
         function say(msg, done) {
             if (status) {
-                readability.openPanel(owner);
-                window.clearTimeout(status._timer);
-                status.className = done ? "lr-row is-done" : "lr-row";
-                status.textContent = " " + msg;
-                status._timer = window.setTimeout(function () {
-                    status.textContent = "";
-                    readability.openPanel(null);
-                }, done ? readability.DONE_MS : 4000);
+                readability.writeRow(owner, [msg], done ? readability.DONE_MS : 4000, done);
             }
         }
 

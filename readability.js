@@ -29,6 +29,8 @@ var dbg = (typeof console !== 'undefined') ? function(s) {
  *     only a fraction of it, which fixes truncated Medium-style articles
  *   - added: full-resolution image upgrade, Markdown export, folder export,
  *     Notion block conversion, theme handling, and the tools bar
+ *   - Astra: shared toolbar row/focus lifecycle, editable-key guards, and
+ *     generation checks preventing stale asynchronous feedback
 **/
 var readability = {
     version:                '1.7.1',
@@ -2277,7 +2279,20 @@ var readability = {
             /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)));
     },
 
-    writeRow: function (owner, nodes, ms, done) {
+    // Astra: a new interaction or dismissal retires all older UI callbacks.
+    rowGeneration: 0,
+
+    beginRow: function () {
+        readability.rowGeneration += 1;
+        return readability.rowGeneration;
+    },
+
+    rowIsCurrent: function (generation) {
+        return generation === readability.rowGeneration;
+    },
+
+    writeRow: function (owner, nodes, ms, done, generation) {
+        if (generation !== undefined && !readability.rowIsCurrent(generation)) { return; }
         var status = document.getElementById("readMarkdownStatus");
         if (!status) { return; }
         window.clearTimeout(status._timer);
@@ -2291,10 +2306,14 @@ var readability = {
         status._owner = owner;
         readability.openPanel(owner);
         if (lostFocus) { readability.arm(document.getElementById(owner)); }
-        if (ms) { status._timer = window.setTimeout(function () { readability.closeRow(false); }, ms); }
+        var current = readability.rowGeneration;
+        if (ms) { status._timer = window.setTimeout(function () {
+            if (readability.rowIsCurrent(current)) { readability.closeRow(false); }
+        }, ms); }
     },
 
     closeRow: function (restoreFocus) {
+        readability.beginRow();
         var status = document.getElementById("readMarkdownStatus");
         if (!status) { return; }
         var owner = status._owner;
@@ -2429,12 +2448,13 @@ var readability = {
         var content = document.getElementById("readability-content");
         var status  = document.getElementById("readMarkdownStatus");
         if (!content || !status) { return; }
+        var generation = readability.beginRow();
 
         /* done marks the row as a result: bold and orange. Set on every call,
            because otherwise the class outlives the line it belonged to and
            the next prompt inherits a shout. */
         function show(nodes, ms, done) {
-            readability.writeRow("send-notion", nodes, ms, done);
+            readability.writeRow("send-notion", nodes, ms, done, generation);
         }
         function link(label, href, onclick, cls) {
             var a = document.createElement("a");
@@ -2449,6 +2469,10 @@ var readability = {
 
         /* Ask the service worker; normalise every failure into {ok:false, error, code}. */
         function request(msg, cb) {
+            var receive = cb;
+            cb = function (resp) {
+                if (readability.rowIsCurrent(generation)) { receive(resp); }
+            };
             if (!window.chrome || !chrome.runtime || !chrome.runtime.sendMessage) {
                 cb({ok: false, code: "noext", error: "Notion export needs the extension - use Copy as Markdown"});
                 return;
@@ -2474,10 +2498,7 @@ var readability = {
             }
         }
 
-        function done() { readability.openPanel(null); }
-
         function fail(resp) {
-            done();
             if (resp.code === "not-connected" || resp.code === "no-target" ||
                 resp.code === "no-permission" || resp.code === "unknown") {
                 /* "unknown" means a stale background script; opening the options
@@ -2693,7 +2714,6 @@ var readability = {
                then travel to bottom right. Leading also lets the row read as
                one sentence: Save - to: - <destination>. */
             var save = link("Save", null, commit, "primary");
-            readability.openPanel("send-notion");
             show([save, toLabel, sel, tagLabel, box,
                   link("refresh list", null, function () { ask(true); }),
                   link("cancel", null, function () { readability.closeRow(true); })]);
@@ -2740,7 +2760,6 @@ var readability = {
                            blocks: readability.toNotionBlocks(content)};
             request({type: "notion-send", article: article, target: target, tagText: tagText || ""},
                     function (resp) {
-                done();
                 if (resp.ok) {
                     var note = resp.tagProperty ? " (tags → " + resp.tagProperty : "";
                     if (note && resp.createdTags && resp.createdTags.length) {
@@ -2749,9 +2768,6 @@ var readability = {
                     if (note) { note += ")"; }
                     show(["Saved to Notion" + note + " ", link("open it", resp.url)],
                          readability.DONE_MS, true);
-                    /* done() closed the panel; the result row that replaced it
-                       belongs to the same button, so light it again. */
-                    readability.openPanel("send-notion");
                 } else { fail(resp); }
             });
         }
@@ -2996,12 +3012,13 @@ var readability = {
      * @param Function status writer
      * @return void
     **/
-    chooseSaveFolder: function (content, pack, name, say) {
+    chooseSaveFolder: function (content, pack, name, say, generation) {
+        if (generation === undefined) { generation = readability.beginRow(); }
         var status = document.getElementById("readMarkdownStatus");
         if (!status) { return; }
 
         function show(nodes, ms, done) {
-            readability.writeRow("save-markdown", nodes, ms, done);
+            readability.writeRow("save-markdown", nodes, ms, done, generation);
         }
 
         function button(label, onclick, cls) {
@@ -3029,7 +3046,7 @@ var readability = {
             var bundled = readability.toMarkdown(content, function (url) { return pack.map[url]; });
 
             function deliver(images) {
-                readability.openPanel("save-markdown");
+                // A committed save continues, but its stale UI stays dismissed.
                 show([folder ? "saving into " + folder + "…" : "saving…"]);
                 readability.notionMessage({type: "save-bundle", folder: name,
                                            markdown: bundled, images: images}, function (resp) {
@@ -3051,13 +3068,13 @@ var readability = {
         }
 
         function offer(folder) {
+            if (!readability.rowIsCurrent(generation)) { return; }
             /* "to:", not "Save to:": the Save button now sits immediately to
                its left and would say the word twice. */
             var where = label("to:");
             var value = label(folder || "Downloads folder");
             value.className = "lr-value";
             var go = button("Save", function () { save(folder); }, "primary");
-            readability.openPanel("save-markdown");
             show([go, where, value,
                   button(folder ? "change folder…" : "choose folder…", pick),
                   button("cancel", function () {
@@ -3069,6 +3086,7 @@ var readability = {
         function pick() {
             show(["waiting for the folder you choose…"]);
             readability.notionMessage({type: "pick-folder"}, function (resp) {
+                if (!readability.rowIsCurrent(generation)) { return; }
                 if (resp && resp.ok && resp.folder) { offer(resp.folder); return; }
                 if (resp && resp.ok && resp.cancelled) {
                     /* Nothing chosen: come back to whatever was remembered. */
@@ -3148,6 +3166,7 @@ var readability = {
     exportMarkdown: function (how) {
         var content = document.getElementById("readability-content");
         if (!content) { return; }
+        var generation = readability.beginRow();
 
         var md     = readability.toMarkdown(content);
         var status = document.getElementById("readMarkdownStatus");
@@ -3160,7 +3179,7 @@ var readability = {
 
         function say(msg, done) {
             if (status) {
-                readability.writeRow(owner, [msg], done ? readability.DONE_MS : 4000, done);
+                readability.writeRow(owner, [msg], done ? readability.DONE_MS : 4000, done, generation);
             }
         }
 
@@ -3187,7 +3206,7 @@ var readability = {
            in the extension's own storage. */
         var pack = readability.collectImages(content);
         if (window.chrome && chrome.runtime && chrome.runtime.sendMessage) {
-            readability.chooseSaveFolder(content, pack, name, say);
+            readability.chooseSaveFolder(content, pack, name, say, generation);
             return;
         }
 

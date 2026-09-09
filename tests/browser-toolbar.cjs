@@ -63,6 +63,76 @@ const root = path.resolve(__dirname, '..');
     assert.equal(await evaluate(`document.querySelector('#readTools a.open').id`), 'copy-markdown');
     assert.equal(await evaluate('window.printCalls'), 1);
     console.log('PASS Print preserves Copy row ownership (print dialog mocked)');
+
+    // Defer selected extension replies to reproduce cancellation and ordering races.
+    await evaluate(`window.deferred = []; window.holdType = '';
+      const immediate = chrome.runtime.sendMessage;
+      chrome.runtime.sendMessage = (msg, cb) => {
+        if (msg.type === window.holdType) window.deferred.push({msg, cb});
+        else immediate(msg, cb);
+      };`);
+    await evaluate(`window.holdType = 'notion-targets'; readability.notionCache = null;
+      document.getElementById('send-notion').click();`);
+    await key('Escape', 'Escape', 27);
+    await evaluate(`window.deferred.splice(0).forEach(x => x.cb({ok:true,targets:[{id:'late',type:'page',title:'Late'}]}));`);
+    assert.equal(await evaluate(`document.getElementById('readMarkdownStatus').textContent`), '');
+    assert.equal(await evaluate('document.activeElement.id'), 'send-notion');
+    console.log('PASS delayed Notion destinations cannot reopen an escaped panel');
+
+    await evaluate(`window.holdType = 'save-target'; document.getElementById('save-markdown').click();
+      document.getElementById('save-markdown').click();
+      window.deferred[1].cb({ok:true,folder:'New folder'});
+      window.deferred[0].cb({ok:true,folder:'Old folder'});
+      window.deferred = [];`);
+    assert.equal(await evaluate(`document.querySelector('#readMarkdownStatus .lr-value').textContent`), 'New folder');
+    console.log('PASS repeated Save rejects earlier replies from the same button');
+
+    await evaluate(`window.holdType = 'pick-folder';
+      [...document.querySelectorAll('#readMarkdownStatus a')].find(a => a.textContent === 'change folder…').click();`);
+    await key('Escape', 'Escape', 27);
+    await evaluate(`window.deferred.shift().cb({ok:true,folder:'Late picked folder'});`);
+    assert.equal(await evaluate(`document.getElementById('readMarkdownStatus').textContent`), '');
+    console.log('PASS delayed folder-picker reply cannot reopen an escaped panel');
+
+    await evaluate(`window.holdType = 'save-bundle'; document.getElementById('save-markdown').click();
+      document.querySelector('#readMarkdownStatus .primary').click();
+      document.getElementById('send-notion').click();
+      window.deferred.shift().cb({ok:true,saved:1});`);
+    assert.equal(await evaluate(`document.querySelector('#readTools a.open').id`), 'send-notion');
+    assert.equal(await evaluate(`!!document.getElementById('readNotionTags')`), true);
+    console.log('PASS submitted save completes without overwriting a newer Notion chooser');
+
+    await evaluate(`window.holdType = 'notion-send';
+      document.querySelector('#readMarkdownStatus .primary').click();
+      document.getElementById('save-markdown').click();
+      window.deferred.shift().cb({ok:false,error:'Late Notion failure'});`);
+    assert.equal(await evaluate(`document.querySelector('#readTools a.open').id`), 'save-markdown');
+    assert.equal(await evaluate(`document.getElementById('readMarkdownStatus').textContent.includes('Late Notion failure')`), false);
+    console.log('PASS late Notion failure cannot overwrite a newer Save chooser');
+
+    await evaluate(`Object.defineProperty(navigator, 'clipboard', {configurable:true,value:{
+      writeText: () => new Promise(resolve => { window.finishCopy = resolve; })}});
+      document.getElementById('copy-markdown').click();
+      document.getElementById('save-markdown').click(); window.finishCopy();`);
+    assert.equal(await evaluate(`document.querySelector('#readTools a.open').id`), 'save-markdown');
+    console.log('PASS delayed clipboard completion cannot overwrite a newer chooser');
+
+    await evaluate(`window.holdType = 'save-bundle';
+      window.originalCollect = readability.collectImages;
+      window.originalFetch = readability.fetchImageBytes;
+      readability.collectImages = () => ({map:{},list:[{url:'https://example.com/image.png',path:'images/test.png'}]});
+      readability.fetchImageBytes = (list, done) => { window.finishImages = () => done(list); };
+      document.getElementById('save-markdown').click();
+      document.querySelector('#readMarkdownStatus .primary').click();
+      document.getElementById('send-notion').click();
+      window.finishImages();`);
+    assert.equal(await evaluate(`window.deferred[0].msg.type`), 'save-bundle');
+    assert.equal(await evaluate(`document.querySelector('#readTools a.open').id`), 'send-notion');
+    await evaluate(`window.deferred.shift().cb({ok:true,saved:2});
+      readability.collectImages = window.originalCollect;
+      readability.fetchImageBytes = window.originalFetch;`);
+    assert.equal(await evaluate(`document.querySelector('#readTools a.open').id`), 'send-notion');
+    console.log('PASS committed image preparation still submits save without reclaiming feedback');
   } finally {
     await call('Page.close');
     ws.close();

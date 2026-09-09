@@ -65,6 +65,42 @@ test('expiry does not move focus when reading the article', () => {
   assert.equal(reader.owner, null);
 });
 
+test('dismissed interactions cannot reopen the row or change focus', () => {
+  const {reader, buttons, row} = fixture();
+  const generation = reader.beginRow();
+  reader.writeRow('save-markdown', ['Loading'], 0, false, generation);
+  reader.closeRow(true);
+  reader.writeRow('save-markdown', ['Late reply'], 100, true, generation);
+  assert.equal(row.children.length, 0);
+  assert.equal(reader.owner, null);
+  assert.equal(reader.armed, buttons['save-markdown']);
+});
+
+test('same-button retry rejects old replies without clearing the newer timer', () => {
+  const {reader, row, timers} = fixture();
+  const old = reader.beginRow();
+  reader.writeRow('send-notion', ['Loading'], 0, false, old);
+  const current = reader.beginRow();
+  reader.writeRow('send-notion', ['New result'], 100, true, current);
+  const timer = row._timer;
+  reader.writeRow('send-notion', ['Old result'], 200, true, old);
+  assert.equal(row.children[0].text, 'New result');
+  assert.equal(row._timer, timer);
+  assert.equal(timers.size, 1);
+});
+
+test('even a queued old expiry cannot dismiss a newer interaction', () => {
+  const {reader, timers, row} = fixture();
+  const old = reader.beginRow();
+  reader.writeRow('copy-markdown', ['Copied'], 100, true, old);
+  const expire = [...timers.values()][0];
+  const current = reader.beginRow();
+  reader.writeRow('save-markdown', ['Choose'], 0, false, current);
+  expire();
+  assert.equal(reader.owner, 'save-markdown');
+  assert.equal(row.children[0].text, 'Choose');
+});
+
 test('legacy Space paging excludes editing, toolbar and handled events', () => {
   const {reader} = fixture();
   for (const tagName of ['INPUT', 'TEXTAREA', 'SELECT']) {

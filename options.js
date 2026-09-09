@@ -323,7 +323,11 @@ document.addEventListener("DOMContentLoaded", function () {
   $("notion_redirect").textContent = LRNotion.redirectURL();
   LRNotion.load().then(function (settings) {
     renderNotion(settings);
-    focusSettingsSection();
+    // Initial fragment navigation can reset focus after DOMContentLoaded.
+    // Wait until load/anchor positioning finishes before focusing recovery.
+    function focusAfterLoad() { window.requestAnimationFrame(focusSettingsSection); }
+    if (document.readyState === "complete") { focusAfterLoad(); }
+    else { window.addEventListener("load", focusAfterLoad, {once: true}); }
   });
 });
 

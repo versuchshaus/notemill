@@ -456,7 +456,6 @@ th {
 
 #readTools {
 
-  --lr-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   /* Absolute, not rem: the bar is interface, not prose, and tying it to the
      article's root size meant a change there silently shrank the buttons.
      That is exactly what happened when the root moved to 18px - the labels

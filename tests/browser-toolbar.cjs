@@ -37,6 +37,7 @@ const root = path.resolve(__dirname, '..');
       .replace('@import url("ui-tokens.css");', fs.readFileSync(path.join(root, 'css/ui-tokens.css'), 'utf8'));
     await evaluate(`document.body.innerHTML = '<article><h1>Astra browser fixture</h1>' + '<p>This is a substantial article paragraph, with useful information about reading and saving notes. It contains enough text for extraction and repeated paragraphs for keyboard scrolling.</p>'.repeat(40) + '</article>';
       window.chrome = {storage: {sync: {get: (defaults, cb) => cb({...defaults, cssReadability: ${JSON.stringify(css)}})}}, runtime: {sendMessage: (msg, cb) => {
+        window.lastFixtureMessage = msg;
         if (msg.type === 'save-target') cb({ok:true, folder:'Test notes'});
         else if (msg.type === 'notion-targets') cb({ok:true, targets:[{id:'test',type:'database',title:'Test destination'}]});
         else if (msg.type === 'notion-tag-options') cb({ok:true,property:'Tags',options:[]});
@@ -240,6 +241,8 @@ const root = path.resolve(__dirname, '..');
       window.deferred.shift().cb({ok:false,code:'not-connected',error:'Connect Notion first.'});`);
     assert.equal(await evaluate(`document.getElementById('readMarkdownStatus').className`), 'lr-row is-error');
     assert.equal(await evaluate(`document.querySelector('#readMarkdownStatus a').textContent`), 'open options');
+    await evaluate(`document.querySelector('#readMarkdownStatus a').click()`);
+    assert.equal(await evaluate('window.lastFixtureMessage.at'), 'notion');
     assert.equal(await evaluate('window.recordedTimers.some(ms => ms > 1000)'), false);
     await evaluate(`window.holdType = ''; document.getElementById('send-notion').click();`);
     assert.equal(await evaluate(`document.getElementById('readMarkdownStatus').className`), 'lr-row');

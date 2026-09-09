@@ -33,6 +33,7 @@ var dbg = (typeof console !== 'undefined') ? function(s) {
  *     generation checks preventing stale asynchronous feedback
  *   - Astra: owner-aligned feedback with a full-width wrapped-toolbar fallback
  *   - Astra: explicit busy/error states and persistent actionable errors
+ *   - Astra: Notion recovery links open the relevant settings section
 **/
 var readability = {
     version:                '1.7.1',

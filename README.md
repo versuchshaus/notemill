@@ -1,15 +1,18 @@
 # Notemill
 
+**New here? [Start with the beginner quickstart →](QUICKSTART.md)**
+
 Reads an article cleanly, saves it as Markdown with its images, and files it in
 your Notion. Nothing leaves the browser unless you send it.
 
 A Chrome/Chromium extension. Click the toolbar button (or press the shortcut)
 and the page is reformatted for reading, using Arc90's Readability parser.
 
-**Extraction is entirely local.** No page content is sent anywhere for
-processing, unlike services such as Mercury Reader. The only outbound request
-Notemill ever makes is to Notion's API, and only for the one article you press
-*Send to Notion* on. Saving Markdown and printing never leave the machine.
+**Extraction is entirely local.** No page content is sent to a remote service
+for processing. Images may be fetched from their source websites; Notion
+sign-in and destination lookup also require network requests. An article is
+uploaded to Notion only when you explicitly send it. Local Markdown export and
+printing do not upload the article to Notion.
 
 The reader's stylesheet is fully customisable in the options.
 

@@ -2,6 +2,8 @@
 // Requires isolated Chrome 152+ with --enable-automation,
 // --enable-unsafe-extension-debugging, --headless=new, --remote-debugging-port=9563
 // and --user-data-dir=/tmp/notemill-astra-live.<unique>. Never use a personal profile.
+// Before launching, set Default/Preferences download.default_directory to that
+// profile's downloads/ subdirectory (and prompt_for_download:false).
 const {connect,connectBrowser} = require('./cdp.cjs');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -25,8 +27,16 @@ async function until(fn, message) {
     assert.ok(args.includes('--headless=new') && args.includes('--enable-unsafe-extension-debugging') &&
       args.some(arg => /^--user-data-dir=(\/private)?\/tmp\/notemill-astra-live\./.test(arg)),
       'Refusing real extension tests outside a designated isolated test profile');
-    const staging = path.join(work,'extension'), downloads = path.join(work,'downloads');
-    fs.mkdirSync(staging); fs.mkdirSync(downloads);
+    const profile = args.find(arg => arg.startsWith('--user-data-dir=')).slice('--user-data-dir='.length);
+    const downloads = path.join(profile,'downloads');
+    const prefs = JSON.parse(fs.readFileSync(path.join(profile,'Default/Preferences'),'utf8'));
+    assert.equal(prefs.download?.default_directory, downloads,
+      'Configure the isolated profile download directory before starting Chrome');
+    assert.equal(prefs.download?.prompt_for_download, false);
+    const staging = path.join(work,'extension');
+    fs.mkdirSync(staging); fs.mkdirSync(downloads,{recursive:true});
+    const runId = path.basename(work).split('.').at(-1).toLowerCase();
+    const title = 'Astra integration fixture ' + runId;
     // Exercise the shipping allowlist, never copy personal credentials or keys.
     const make = fs.readFileSync(path.join(root,'Makefile'),'utf8');
     const shipped = make.match(/SHIPPED := ([\s\S]*?)\n\n/)[1].replace(/\\\n/g,' ').trim().split(/\s+/);
@@ -38,7 +48,7 @@ async function until(fn, message) {
     delete manifest.__firefox_background; delete manifest.browser_specific_settings;
     fs.writeFileSync(path.join(staging,'manifest.json'),JSON.stringify(manifest,null,2));
     fs.writeFileSync(path.join(staging,'notion-config.js'),'// Deliberately unconfigured test build. No private credentials.\nvar LR_NOTION_APP = {};\n');
-    await browser.call('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:downloads});
+    // Do not override downloads via CDP: it bypasses extension-suggested paths.
     ({id:extensionId} = await browser.call('Extensions.loadUnpacked',{path:staging}));
     const origin = 'chrome-extension://' + extensionId;
     async function targetAt(url) {
@@ -63,7 +73,7 @@ async function until(fn, message) {
       if (req.url !== '/article') {res.writeHead(404); res.end(); return;}
       res.setHeader('Content-Type','text/html');
       res.setHeader('Content-Security-Policy',"script-src 'none'; object-src 'none'");
-      res.end('<!doctype html><html><head><title>Astra integration fixture</title></head><body><article><h1>Astra integration fixture</h1>' +
+      res.end('<!doctype html><html><head><title>' + title + '</title></head><body><article><h1>' + title + '</h1>' +
         paragraph.repeat(5) + '<figure><img src="/figure.png" width="640" height="360" alt="Fixture illustration"><figcaption>A local illustration.</figcaption></figure>' +
         paragraph.repeat(5) + '</article></body></html>');
     });
@@ -99,10 +109,20 @@ async function until(fn, message) {
       for (const p of [reader,options,recovery]) await p.waitFor(`document.documentElement.dataset.lrTheme === '${theme}'`);
       assert.equal(await options.evaluate(`chrome.storage.sync.get('lrTheme').then(settings => settings.lrTheme)`),theme);
     }
+    await options.evaluate(`document.getElementById('lr_theme').value = 'auto'; document.getElementById('lr_theme').dispatchEvent(new Event('change'))`);
+    for (const p of [reader,options,recovery]) {
+      await p.call('Page.bringToFront');
+      for (const theme of ['dark','light']) {
+        await p.call('Emulation.setEmulatedMedia',{features:[{name:'prefers-color-scheme',value:theme}]});
+        await p.waitFor(`document.documentElement.dataset.lrTheme === '${theme}'`);
+      }
+    }
+    await options.evaluate(`document.getElementById('lr_theme').value = 'light'; document.getElementById('lr_theme').dispatchEvent(new Event('change'))`);
+    await options.waitFor(`chrome.storage.sync.get('lrTheme').then(settings => settings.lrTheme === 'light')`);
     await options.call('Page.bringToFront');
     await options.call('Page.reload');
     await options.waitFor(`document.readyState === 'complete' && document.getElementById('lr_theme').value === 'light'`);
-    console.log('PASS real Chrome storage persists themes and updates reader and multiple options pages');
+    console.log('PASS real Chrome storage persists Day/Night/System and updates reader and multiple options pages');
 
     await reader.evaluate(`document.getElementById('save-markdown').click()`);
     await reader.waitFor(`!!document.querySelector('#readMarkdownStatus .primary')`);
@@ -121,8 +141,9 @@ async function until(fn, message) {
 
     await reader.evaluate(`document.querySelector('#readMarkdownStatus .primary').click()`);
     await reader.waitFor(`document.getElementById('readMarkdownStatus').classList.contains('is-done')`);
-    const folder = path.join(downloads,'astra-integration-fixture');
-    const mdPath = path.join(folder,'astra-integration-fixture.md');
+    const slug = 'astra-integration-fixture-' + runId;
+    const folder = path.join(downloads,slug);
+    const mdPath = path.join(folder,slug + '.md');
     const imagePath = path.join(folder,'images','01-figure.png');
     await until(() => fs.existsSync(mdPath) && fs.existsSync(imagePath), 'Expected Markdown/image download files')
       .catch(async err => { throw new Error(err.message + ': ' + JSON.stringify(await options.evaluate(
@@ -151,7 +172,7 @@ async function until(fn, message) {
     if (extensionId) {
       try {await browser.call('Extensions.uninstall',{id:extensionId});} catch (err) {console.warn('Test extension cleanup: ' + err.message);}
     }
-    try {await browser.call('Browser.setDownloadBehavior',{behavior:'default'});} finally {browser.closeSocket();}
+    browser.closeSocket();
     if (server) await new Promise(resolve => server.close(resolve));
   }
 })().catch(err => {console.error(err); process.exitCode = 1;});

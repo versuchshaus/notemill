@@ -1,7 +1,7 @@
 // Minimal CDP helper for Astra's isolated-browser tests (Node 22+).
-async function connect(base = process.env.CDP_URL || 'http://localhost:9563') {
-  const target = await (await fetch(base + '/json/new?about:blank', {method: 'PUT'})).json();
-  const ws = new WebSocket(target.webSocketDebuggerUrl);
+const defaultBase = () => process.env.CDP_URL || 'http://localhost:9563';
+async function connectSocket(url) {
+  const ws = new WebSocket(url);
   await new Promise((resolve, reject) => {
     ws.addEventListener('open', resolve, {once:true});
     ws.addEventListener('error', reject, {once:true});
@@ -40,11 +40,21 @@ async function connect(base = process.env.CDP_URL || 'http://localhost:9563') {
       text:key === 'Enter' ? '\r' : key === ' ' ? ' ' : undefined});
     await call('Input.dispatchKeyEvent', {type:'keyUp',key,code,windowsVirtualKeyCode:virtual});
   }
-  async function close() {
-    try { await call('Page.close'); } finally { ws.close(); }
-  }
-  await call('Page.enable');
-  await call('Runtime.enable');
-  return {call,evaluate,waitFor,key,close};
+  return {call,evaluate,waitFor,key,closeSocket:() => ws.close()};
 }
-module.exports = {connect};
+
+async function connect(base = defaultBase(), existingTarget) {
+  const target = existingTarget || await (await fetch(base + '/json/new?about:blank', {method:'PUT'})).json();
+  const session = await connectSocket(target.webSocketDebuggerUrl);
+  await session.call('Page.enable');
+  await session.call('Runtime.enable');
+  return {...session, targetId:target.id, async close() {
+    try { await session.call('Page.close'); } finally { session.closeSocket(); }
+  }};
+}
+
+async function connectBrowser(base = defaultBase()) {
+  const version = await (await fetch(base + '/json/version')).json();
+  return connectSocket(version.webSocketDebuggerUrl);
+}
+module.exports = {connect,connectBrowser};

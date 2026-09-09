@@ -133,6 +133,81 @@ const root = path.resolve(__dirname, '..');
       readability.fetchImageBytes = window.originalFetch;`);
     assert.equal(await evaluate(`document.querySelector('#readTools a.open').id`), 'send-notion');
     console.log('PASS committed image preparation still submits save without reclaiming feedback');
+
+    // Real layout checks: use production rows and CSS, not a static mockup.
+    const screenshotDir = path.join(root, 'build/preview/astra');
+    fs.mkdirSync(screenshotDir, {recursive: true});
+    for (const theme of ['light', 'dark']) {
+      for (const width of [1280, 760, 520, 320]) {
+        await call('Emulation.setDeviceMetricsOverride', {width, height: 900, deviceScaleFactor: 1, mobile: false});
+        await evaluate(`readability.applyTheme(${JSON.stringify(theme)}); readability.closeRow(false); readability.openPanel('copy-markdown');`);
+        const baseline = await evaluate(`document.getElementById('readTools').getBoundingClientRect().width`);
+        await evaluate(`readability.writeRow('copy-markdown', ['Copied as Markdown'], 0, true);`);
+        // Let resize/ResizeObserver callbacks settle before measuring.
+        await evaluate(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
+        const layout = await evaluate(`(() => {
+          const bar = document.getElementById('readTools');
+          const row = document.getElementById('readMarkdownStatus');
+          const owner = document.getElementById('copy-markdown');
+          const range = document.createRange(); range.selectNodeContents(row);
+          return {barWidth:bar.getBoundingClientRect().width, left:bar.getBoundingClientRect().left,
+            right:bar.getBoundingClientRect().right, textLeft:range.getBoundingClientRect().left,
+            ownerLeft:owner.getBoundingClientRect().left, rowLeft:row.getBoundingClientRect().left,
+            wide:bar.classList.contains('lr-feedback-wide'),
+            arrow:getComputedStyle(owner,'::after').display,
+            anchor:parseFloat(row.style.getPropertyValue('--lr-row-anchor'))};
+        })()`);
+        assert.ok(Math.abs(layout.barWidth - baseline) < 1, 'feedback must not widen toolbar: ' + JSON.stringify({baseline,layout}));
+        assert.ok(layout.left >= 0 && layout.right <= width + 1, 'toolbar stays within viewport');
+        if (layout.wide) {
+          assert.equal(layout.anchor, 0);
+          assert.equal(layout.arrow, 'none');
+          assert.ok(Math.abs(layout.textLeft - layout.rowLeft) < 1);
+        } else {
+          assert.ok(Math.abs(layout.textLeft - layout.ownerLeft) < 1, 'Copy feedback aligns to owner');
+          assert.notEqual(layout.arrow, 'none');
+        }
+        const shot = await call('Page.captureScreenshot', {format:'png'});
+        fs.writeFileSync(path.join(screenshotDir, `copy-${theme}-${width}.png`), Buffer.from(shot.data, 'base64'));
+        await evaluate(`readability.writeRow('save-markdown', ['Long result: ' + 'unbroken-filename-'.repeat(35)], 0, true);`);
+        assert.ok(await evaluate(`(() => {const row = document.getElementById('readMarkdownStatus');
+          return row.scrollWidth <= row.clientWidth + 1;})()`), 'long feedback must wrap');
+        await evaluate(`window.holdType = ''; document.getElementById('save-markdown').click();`);
+        assert.ok(await evaluate(`(() => {const row = document.getElementById('readMarkdownStatus');
+          const owner = document.getElementById('save-markdown');
+          return document.getElementById('readTools').classList.contains('lr-feedback-wide') ||
+            Math.abs(row.firstElementChild.getBoundingClientRect().left - owner.getBoundingClientRect().left) < 1;
+        })()`), 'Save chooser aligns to Save trigger');
+        assert.ok(await evaluate(`(() => {const row = document.getElementById('readMarkdownStatus');
+          return row.scrollWidth <= row.clientWidth + 1;})()`), 'Save chooser stays contained');
+        const saveShot = await call('Page.captureScreenshot', {format:'png'});
+        fs.writeFileSync(path.join(screenshotDir, `save-${theme}-${width}.png`), Buffer.from(saveShot.data, 'base64'));
+        await evaluate(`document.getElementById('send-notion').click();`);
+        assert.ok(await evaluate(`(() => {const row = document.getElementById('readMarkdownStatus');
+          return row.scrollWidth <= row.clientWidth + 1;})()`), 'Notion chooser stays contained');
+        console.log('PASS feedback geometry, long text, Save and Notion choosers: ' + theme + ' ' + width + 'px');
+      }
+    }
+    // Check a live row after resizing in both directions (no intervening row write).
+    await call('Emulation.setDeviceMetricsOverride', {width:1280,height:900,deviceScaleFactor:1,mobile:false});
+    await evaluate(`readability.writeRow('copy-markdown', ['Copied'], 0, true)`);
+    for (const width of [520, 1280]) {
+      await call('Emulation.setDeviceMetricsOverride', {width,height:900,deviceScaleFactor:1,mobile:false});
+      await evaluate(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
+      assert.equal(await evaluate(`document.getElementById('readTools').classList.contains('lr-feedback-wide')`), width === 520);
+    }
+    console.log('PASS live feedback reanchors on narrow → wide resize');
+    await evaluate(`document.body.dir = 'rtl'; readability.writeRow('save-markdown', ['Saved'], 0, true);`);
+    assert.ok(await evaluate(`(() => {
+      const row = document.getElementById('readMarkdownStatus');
+      const owner = document.getElementById('save-markdown');
+      const range = document.createRange(); range.selectNodeContents(row);
+      return Math.abs(range.getBoundingClientRect().right - owner.getBoundingClientRect().right) < 1;
+    })()`), 'RTL feedback aligns at the owner right edge');
+    console.log('PASS RTL feedback uses the inline start edge');
+    await evaluate(`readability.closeRow(false); readability.openPanel('print-page');`);
+    assert.equal(await evaluate(`getComputedStyle(document.getElementById('print-page'),'::after').display`), 'none');
+    console.log('PASS empty feedback never draws an arrow');
   } finally {
     await call('Page.close');
     ws.close();

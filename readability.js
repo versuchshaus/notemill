@@ -31,6 +31,7 @@ var dbg = (typeof console !== 'undefined') ? function(s) {
  *     Notion block conversion, theme handling, and the tools bar
  *   - Astra: shared toolbar row/focus lifecycle, editable-key guards, and
  *     generation checks preventing stale asynchronous feedback
+ *   - Astra: owner-aligned feedback with a full-width wrapped-toolbar fallback
 **/
 var readability = {
     version:                '1.7.1',
@@ -245,6 +246,12 @@ var readability = {
 
         var bar = document.getElementById("readTools");
         if (bar) {
+          /* Reflow on viewport, font and toolbar-size changes, not on scroll. */
+          window.addEventListener("resize", readability.alignRow);
+          if (typeof ResizeObserver !== "undefined") {
+            readability.rowResizeObserver = new ResizeObserver(readability.alignRow);
+            readability.rowResizeObserver.observe(bar.firstElementChild);
+          }
           /* The bar is sticky; it only looks lifted once something is under it. */
           (function () {
             var base = bar.getBoundingClientRect().top + window.pageYOffset;
@@ -2272,6 +2279,36 @@ var readability = {
         }
     },
 
+    // Astra: keep the feedback at its owner's inline edge. Once the controls
+    // wrap, a shared full-width row is more honest than an arrow at another button.
+    alignRow: function (bar) {
+        // Optional element also lets the preview render several independent bars.
+        if (!bar || bar.id !== "readTools") { bar = document.getElementById("readTools"); }
+        if (!bar) { return; }
+        var status = bar.querySelector("#readMarkdownStatus");
+        if (!status) { return; }
+        var controls = bar.firstElementChild;
+        var buttons = controls ? controls.querySelectorAll("a") : [];
+        var owner = status._owner && bar.querySelector("#" + status._owner);
+        var wrapped = false;
+        var top = buttons.length ? buttons[0].getBoundingClientRect().top : 0;
+        for (var i = 1; i < buttons.length; i += 1) {
+            if (Math.abs(buttons[i].getBoundingClientRect().top - top) > 2) { wrapped = true; }
+        }
+        var anchor = 0;
+        if (owner && !wrapped && status.textContent.trim()) {
+            var rowRect = status.getBoundingClientRect();
+            var ownerRect = owner.getBoundingClientRect();
+            var rtl = window.getComputedStyle(status).direction === "rtl";
+            anchor = Math.max(0, rtl ? rowRect.right - ownerRect.right : ownerRect.left - rowRect.left);
+            // Never compress a result into a thin sliver at the card's edge.
+            if (rowRect.width - anchor < Math.min(240, rowRect.width)) { anchor = 0; }
+        }
+        bar.classList.toggle("lr-feedback-wide", wrapped || (!anchor && owner &&
+            controls && owner !== buttons[0]));
+        status.style.setProperty("--lr-row-anchor", anchor + "px");
+    },
+
     // Astra: shared row lifecycle; timers never steal focus from the article.
     isEditingKey: function (e) {
         var t = e.target;
@@ -2305,6 +2342,7 @@ var readability = {
         });
         status._owner = owner;
         readability.openPanel(owner);
+        readability.alignRow();
         if (lostFocus) { readability.arm(document.getElementById(owner)); }
         var current = readability.rowGeneration;
         if (ms) { status._timer = window.setTimeout(function () {
@@ -2324,6 +2362,7 @@ var readability = {
         status.textContent = "";
         status._owner = null;
         readability.openPanel(null);
+        readability.alignRow();
         if (restoreFocus || lostFocus) { readability.arm(document.getElementById(owner)); }
     },
 

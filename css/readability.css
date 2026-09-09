@@ -534,6 +534,7 @@ th {
   align-items: flex-end;
   gap: 0.35rem;
   width: fit-content;
+  box-sizing: border-box;
   max-width: calc(100vw - 2rem);
   margin: 0.6rem 1rem 1.5rem auto;
   padding: 0.4rem;
@@ -674,6 +675,12 @@ th {
   /* The outline's colour, not the tint's: 14% orange in a triangle is not
      there at all. */
   border-color: hsl(var(--open-border)) transparent transparent;
+}
+
+/* A wrapped/shared feedback row has no geometric arrow claim. */
+#readTools.lr-feedback-wide a.open::after,
+#readTools:has(#readMarkdownStatus:empty) a.open::after {
+  display: none;
 }
 
 #readTools a.open:focus-visible,
@@ -843,13 +850,30 @@ th {
   display: none;
 }
 
-/* The card right-aligns its rows against the page edge, which parked a
-   short panel row - Save included - under the far right of the bar, as far
-   from the trigger that opened it as the card allows. The panel row starts
-   at the left instead, so Save lands under the buttons, not off past them. */
+/* Astra: only the controls set the card's intrinsic width. Feedback occupies
+   that width and starts at its owner's inline edge; long content wraps within
+   the remaining space instead of widening the card. JS resets the offset when
+   the controls wrap or insufficient room remains beside the owner. */
 #readTools #readMarkdownStatus {
-  align-self: flex-start;
+  align-self: stretch;
   justify-content: flex-start;
+  contain: inline-size;
+  min-width: 0;
+  box-sizing: border-box;
+  padding-inline-start: var(--lr-row-anchor, 0px);
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+
+#readMarkdownStatus > * {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+#readMarkdownStatus .lr-tagbox input {
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 /* A finished save is the one line in this row that reports rather than asks,

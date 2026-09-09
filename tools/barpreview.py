@@ -52,7 +52,7 @@ CASES = [
       A("Save", "primary armed") + L("to:") + "<select><option>Reading list (db)</option></select>" + L("Tag:") +
       "<span class='lr-tagbox'><input type='text' value='Research'></span>" + A("refresh list") + A("cancel"))),
   ("Copy Markdown done", row1(open_="Copy Markdown") + status(" copied 18432 chars", "is-done")),
-  ("Print pressed", row1(open_="Print") + status("")),
+  ("Print (native dialog supplies feedback)", row1() + status("")),
   ("Notion saved", row1(open_="Send to Notion") + status(" Saved to Notion (tags → Tags) " + A("open it"), "is-done")),
   ("error", row1() + status(" Connect Notion in the extension options first. " + A("open options"))),
 ]
@@ -61,10 +61,19 @@ def page(theme):
     css = read("css/readability.css")
     if theme == "dark": css = css.replace(':root[data-lr-theme="dark"]', ":root")
     body = "".join("<p class='cap'>%s</p><div id='readTools'>%s</div>" % (c, h) for c, h in CASES)
+    # Astra: reuse the production alignment routine; static CSS alone cannot
+    # position feedback beneath the owning button. Each preview bar is scoped.
+    align = read("readability.js").split("    alignRow: function (bar) {", 1)[1].split("\n    },", 1)[0]
+    script = ("<script>function alignRow(bar) {" + align + "\n}\n"
+              "function alignAll() { document.querySelectorAll('#readTools').forEach(function(bar) {"
+              "var row = bar.querySelector('#readMarkdownStatus'), owner = bar.querySelector('a.open');"
+              "row._owner = owner ? owner.id : null; alignRow(bar); }); }"
+              "window.addEventListener('load', alignAll); window.addEventListener('resize', alignAll);"
+              "if (document.fonts) document.fonts.ready.then(alignAll);</script>")
     return ("<!doctype html><html lang='en'><head><meta charset='utf-8'><style>%s</style>"
             "<style>body{padding:1rem 1.25rem 2rem;font-size:16px}"
             ".cap{font-family:system-ui,sans-serif;font-size:12px;color:var(--lr-muted);margin:1.4rem 0 .15rem;text-align:right}"
-            "#readTools{position:static;margin:0 0 0 auto}</style></head><body>%s</body></html>" % (css, body))
+            "#readTools{position:static;margin:0 0 0 auto}</style></head><body>%s%s</body></html>" % (css, body, script))
 
 def main():
     os.makedirs(OUT, exist_ok=True)

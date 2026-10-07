@@ -39,6 +39,20 @@ body:
     attributes:
       label: What was confusing, or did not work?
       description: The more concrete, the better. A screenshot helps a lot; you can paste it here.
+  - type: dropdown
+    id: keep
+    attributes:
+      label: Would you keep using Notemill?
+      options:
+        - Yes, it stays in my browser
+        - Maybe, if something changes (please say what below)
+        - No (please say why below)
+  - type: textarea
+    id: compare
+    attributes:
+      label: How does it compare to what you use now?
+      description: What is better, what is worse?
+      placeholder: e.g. Notion Web Clipper, another clipper or read-later app, plain bookmarks
   - type: textarea
     id: daily
     attributes:

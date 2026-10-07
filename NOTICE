@@ -1,0 +1,18 @@
+Notemill
+Copyright (c) 2026 Stephan von Lingelsheim
+
+Notemill itself - the extension, its stylesheet, its icons and its build
+scripts - is original work under the MIT licence in LICENCE.
+
+Third-party material distributed with this software
+---------------------------------------------------
+
+readability.js
+    Copyright (c) 2010 Arc90 Inc, licensed under the Apache License, Version
+    2.0. The licence text is in LICENCE-APACHE; the file's own header lists
+    the modifications made to it. "Readability" is a trademark of Arc90 Inc
+    and is not used as a product name here.
+
+css/fonts/LinLibertine_*.woff
+    Linux Libertine, under the SIL Open Font License (FONT-LICENCE.txt).
+    Unmodified and unrenamed, as the Reserved Font Name clause requires.

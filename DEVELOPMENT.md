@@ -137,8 +137,8 @@ light and dark themes, a sticky tools bar and full keyboard operation.
 
 ## Licences
 
-Notemill is MIT licensed ([`LICENCE`](LICENCE)). Two obligations come with the third-party
-material it carries, both met by files that ship inside the extension:
+Notemill is MIT licensed ([`LICENCE`](LICENCE)); [`NOTICE`](NOTICE) lists the third-party
+material. Two obligations come with it, both met by files that ship inside the extension:
 
 - **Apache 2.0** for `readability.js`: keep the notices, ship
   [`LICENCE-APACHE`](LICENCE-APACHE), state the modifications.

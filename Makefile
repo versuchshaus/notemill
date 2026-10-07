@@ -25,7 +25,7 @@ RELZIP  := $(EXTNAME)-$(VERSION).zip
 SHIPPED := manifest.json readability.js content.js sw.js notion.js folder.js \
            notion-config.js notion-config.example.js options.html options.js \
            pick.html pick.js ui-theme.js \
-           css img LICENCE LICENCE-APACHE FONT-LICENCE.txt README.md PRIVACY.md
+           css img LICENCE NOTICE LICENCE-APACHE FONT-LICENCE.txt README.md PRIVACY.md
 
 all: $(ZIP)
 

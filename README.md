@@ -267,7 +267,7 @@ Building from source, running the tests, deploying the sign-in service and makin
 Notemill is made by Stephan von Lingelsheim and released under the **MIT licence**
 ([`LICENCE`](LICENCE)). The article parser is Arc90's Readability (Apache 2.0,
 [`LICENCE-APACHE`](LICENCE-APACHE)); the reading font is Linux Libertine (SIL Open Font Licence,
-[`FONT-LICENCE.txt`](FONT-LICENCE.txt)).
+[`FONT-LICENCE.txt`](FONT-LICENCE.txt)). [`NOTICE`](NOTICE) lists the third-party material.
 
 Notion is a trademark of Notion Labs, Inc. Notemill is an independent project, not affiliated
 with or endorsed by Notion Labs.

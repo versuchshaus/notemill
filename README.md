@@ -5,8 +5,9 @@
 <h1 align="center">Notemill</h1>
 
 <p align="center">
-  <b>Turn any web article into a clean page, and file it in Notion with one click.</b><br>
-  Or save it as Markdown with its images. Free and open source.
+  <b>Keep the articles you find, not just their links.</b><br>
+  Notemill saves the full text and pictures of any web article to your Notion, or as Markdown,
+  so it stays yours and searchable after the page is gone. Free and open source.
 </p>
 
 <p align="center">
@@ -26,8 +27,24 @@
 > **Early test version.** Notemill is being tried out by the Notion Ambassadors community.
 > Your feedback decides what comes next. See [Give feedback](#give-feedback).
 
+## Why Notemill
+
+Your browser already keeps links. Notemill keeps the article.
+
+That difference matters more than it sounds. I search for something, find an article worth
+keeping and bookmark it. Half a year later I go back, and the page is gone: the blog shut
+down, the site was redesigned, the article moved behind a paywall. The bookmark is still
+there; the information is not. This is not bad luck. The Pew Research Center found that
+[38% of the web pages that existed in 2013 could no longer be reached a decade later](https://www.pewresearch.org/data-labs/2024/05/17/when-online-content-disappears/).
+
+So Notemill saves the article itself, with its text, headings, pictures and source address,
+into your own Notion. Everything that interests you becomes an archive you own: searchable
+next to your own notes, tagged the way you think, and still readable long after the original
+has disappeared.
+
 ## Contents
 
+- [Why Notemill](#why-notemill)
 - [What Notemill does](#what-notemill-does)
 - [Install in 3 minutes](#install-in-3-minutes)
 - [Connect Notion](#connect-notion)
@@ -39,13 +56,14 @@
 
 ## What Notemill does
 
-- **Read without clutter.** One click turns a busy article into a calm page: no ads, menus,
-  banners or pop-ups, just the text and its pictures in a comfortable column.
 - **Send to Notion.** Choose one of your databases, add tags (Notemill suggests the ones the
   database already has), press Save. Notemill creates a new Notion page with the article's
-  headings, text, images and a link to the source.
+  headings, text, images and a link to the source, searchable like everything else you keep
+  in Notion.
 - **Save as Markdown.** A folder with the article as a `.md` file and its images, ready for
-  Obsidian, iA Writer, Bear or any text editor.
+  Obsidian, iA Writer, Bear or any text editor. A copy on your own disk, no account needed.
+- **Read without clutter.** One click turns a busy article into a calm page: no ads, menus,
+  banners or pop-ups, just the text and its pictures in a comfortable column.
 - **Copy as Markdown** to paste anywhere, and **Print** (including *Save as PDF*).
 - **Private by design.** The page is cleaned up on your own computer. Nothing is sent anywhere
   until you press *Send to Notion*, and then only to Notion. No tracking, no account.

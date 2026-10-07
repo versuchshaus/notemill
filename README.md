@@ -29,18 +29,21 @@
 
 ## Why Notemill
 
-Your browser already keeps links. Notemill keeps the article.
+### Notemill is so much more than a bookmark!
 
-That difference matters more than it sounds. I search for something, find an article worth
-keeping and bookmark it. Half a year later I go back, and the page is gone: the blog shut
-down, the site was redesigned, the article moved behind a paywall. The bookmark is still
-there; the information is not. This is not bad luck. The Pew Research Center found that
-[38% of the web pages that existed in 2013 could no longer be reached a decade later](https://www.pewresearch.org/data-labs/2024/05/17/when-online-content-disappears/).
+It happens again and again. We search for something and find a really good article.  
+We bookmark it and half a year later you come back.  
+Click the bookmark and the page is gone.  
+Dead it is and with it the information i wanted to read up.
 
-So Notemill saves the article itself, with its text, headings, pictures and source address,
-into your own Notion. Everything that interests you becomes an archive you own: searchable
-next to your own notes, tagged the way you think, and still readable long after the original
-has disappeared.
+That is the reason I started building Notemill and it has become super important to me.  
+Notemill does not keep a link, it keeps the article itself with its text and pictures and the address it came from.
+
+And it lands in my Notion database, from where I can search it like everything else I keep, tag it and connect it with my other notes, tags or projects. 
+
+And we are all not alone with this by the way. The [Pew Research Center](https://www.pewresearch.org/data-labs/2024/05/17/when-online-content-disappears/) found that 38% of the web pages that existed in 2013 were gone ten years later.
+
+Try it out, and i would very much appreciate if you send me your feedback!
 
 ## Contents
 

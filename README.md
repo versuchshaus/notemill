@@ -34,7 +34,7 @@
 It happens again and again. We search for something and find a really good article.  
 We bookmark it and half a year later you come back.  
 Click the bookmark and the page is gone.  
-Dead it is and with it the information i wanted to read up.
+Dead it is and with it the information I wanted to read up.
 
 That is the reason I started building Notemill and it has become super important to me.  
 Notemill does not keep a link, it keeps the article itself with its text and pictures and the address it came from.
@@ -43,7 +43,7 @@ And it lands in my Notion database, from where I can search it like everything e
 
 And we are all not alone with this by the way. The [Pew Research Center](https://www.pewresearch.org/data-labs/2024/05/17/when-online-content-disappears/) found that 38% of the web pages that existed in 2013 were gone ten years later.
 
-Try it out, and i would very much appreciate if you send me your feedback!
+Try it out, and I would very much appreciate if you send me your feedback!
 
 ## Contents
 

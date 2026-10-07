@@ -53,7 +53,9 @@ function chromeMock(theme, state) {
           switch (msg.type) {
             case 'ping': return reply({ok: true, version: '1.9.0'});
             case 'notion-targets':
-              return reply({ok: true, targets, chosen: ['reading', 'research'], defaultId: 'reading',
+              // What sw.js sends the reader by default: databases only.
+              return reply({ok: true, targets: targets.filter(t => t.type === 'database'),
+                            chosen: ['reading', 'research'], defaultId: 'reading',
                             tagsByTarget: {reading: 'Habits, Research'}});
             case 'notion-tag-options': return reply({ok: true, property: 'Tags', options: ${JSON.stringify(TAGS)}});
             case 'notion-send': return reply({ok: true, url: 'https://www.notion.so/', tagProperty: 'Tags'});
@@ -75,7 +77,8 @@ const NOTION_MOCK = `var LRNotion = {
        chosenTargets: ['reading', 'research']}
     : {},
   save: async p => p, disconnect: async () => ({}),
-  redirectURL: () => 'https://<extension-id>.chromiumapp.org/notion'
+  redirectURL: () => 'https://<extension-id>.chromiumapp.org/notion',
+  visible: (targets, includePages) => (targets || []).filter(t => includePages || t.type === 'database')
 };`;
 const FOLDER_MOCK = `var LRFolder = {usable: async () => null, load: async () => null, save: async () => {}, clear: async () => {}};`;
 

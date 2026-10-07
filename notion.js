@@ -284,14 +284,33 @@ var LRNotion = (function () {
     return true;
   }
 
+  /* Notion's /search pages its results, and a filtered page often comes back
+     with fewer than page_size entries while has_more is still true. Reading
+     only the first page is why some shared databases never showed up, so
+     follow next_cursor - up to SEARCH_PAGES pages per kind, so a huge
+     workspace cannot keep the list loading forever. */
+  var SEARCH_PAGES = 10;
+
   function listTargets(token, botId) {
     function search(kind) {
-      return request("/search", "POST", {
-        filter:    {property: "object", value: kind},
-        sort:      {direction: "descending", timestamp: "last_edited_time"},
-        page_size: 100
-      }, token).then(function (res) {
-        return (res.results || []).filter(function (r) {
+      var found = [];
+      function page(cursor, n) {
+        var body = {
+          filter:    {property: "object", value: kind},
+          sort:      {direction: "descending", timestamp: "last_edited_time"},
+          page_size: 100
+        };
+        if (cursor) { body.start_cursor = cursor; }
+        return request("/search", "POST", body, token).then(function (res) {
+          found = found.concat(res.results || []);
+          if (res.has_more && res.next_cursor && n + 1 < SEARCH_PAGES) {
+            return page(res.next_cursor, n + 1);
+          }
+          return found;
+        });
+      }
+      return page(null, 0).then(function (results) {
+        return results.filter(function (r) {
           return isDestination(r, botId);
         }).map(function (r) {
           return {id: r.id, type: r.object, title: titleOf(r), icon: iconOf(r)};
@@ -305,15 +324,31 @@ var LRNotion = (function () {
   }
 
   /**
+   * Databases only, unless the user asked for ordinary pages too. Databases
+   * are where a saved article gets properties and tags; a plain page is a
+   * deliberate choice, made in the options.
+   *
+   * @param Array targets
+   * @param Boolean includePages
+   * @return Array
+   */
+  function visible(targets, includePages) {
+    return (targets || []).filter(function (t) {
+      return includePages || t.type === "database";
+    });
+  }
+
+  /**
    * The destinations to offer in the reader: the subset ticked in the options,
    * or everything while nothing has been ticked.
    *
    * @param Array targets
    * @param Array|null chosen ids
+   * @param Boolean includePages  also offer ordinary pages
    * @return Array
    */
-  function offered(targets, chosen) {
-    var list = targets || [];
+  function offered(targets, chosen, includePages) {
+    var list = visible(targets, includePages);
     if (!chosen || !chosen.length) { return list; }
     var wanted = {};
     chosen.forEach(function (id) { wanted[id] = true; });
@@ -587,7 +622,7 @@ var LRNotion = (function () {
     hasHostPermission: hasHostPermission, requestHostPermission: requestHostPermission,
     connect: connect, listTargets: listTargets, createPage: createPage,
     appDefaults: appDefaults, credentials: credentials,
-    tagOptions: tagOptions, offered: offered, _isDestination: isDestination,
+    tagOptions: tagOptions, offered: offered, visible: visible, _isDestination: isDestination,
     // exposed for tests
     _demoteImages: demoteImages, _titleOf: titleOf, _authorize: authorize,
     _tagProperty: tagProperty, _cleanTags: cleanTags, _looksLikeTagName: looksLikeTagName,

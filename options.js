@@ -124,7 +124,9 @@ function renderNotion(settings) {
     flash($("notion_state"), "Not connected.", "");
   }
 
-  renderTargets(settings.targets || [], settings.chosenTargets, connected);
+  $("notion_include_pages").checked  = !!settings.includePages;
+  $("notion_include_pages").disabled = !connected;
+  renderTargets(LRNotion.visible(settings.targets, settings.includePages), settings.chosenTargets, connected);
   $("notion_refresh").disabled = !connected;
   $("notion_targets_none").disabled = !connected;
 }
@@ -154,6 +156,9 @@ function renderTargets(targets, chosen, connected) {
 
   var ticked = {};
   (chosen || []).forEach(function (id) { ticked[id] = true; });
+  /* "database" / "page" only tells the two apart; with databases alone it is noise. */
+  var mixed = targets.some(function (t) { return t.type !== "database"; }) &&
+              targets.some(function (t) { return t.type === "database"; });
 
   targets.forEach(function (t) {
     var row = document.createElement("label");
@@ -175,7 +180,7 @@ function renderTargets(targets, chosen, connected) {
 
     row.appendChild(box);
     row.appendChild(name);
-    row.appendChild(kind);
+    if (mixed) { row.appendChild(kind); }
     host.appendChild(row);
   });
 
@@ -214,8 +219,16 @@ function refreshTargets() {
       return;
     }
     if (!resp.ok) { flash($("notion_target_state"), resp.error, "err"); return; }
-    renderTargets(resp.targets, resp.chosen, true);
+    renderTargets(LRNotion.visible(resp.targets, $("notion_include_pages").checked), resp.chosen, true);
   });
+}
+
+/* Databases only by default; ordinary pages are an opt-in. The full list is
+   already stored, so switching only changes what is shown and offered. */
+function saveIncludePages() {
+  LRNotion.save({includePages: $("notion_include_pages").checked})
+    .then(function () { return LRNotion.load(); })
+    .then(renderNotion);
 }
 
 function connectNotion() {
@@ -339,3 +352,4 @@ $("notion_connect").addEventListener("click", connectNotion);
 $("notion_disconnect").addEventListener("click", disconnectNotion);
 $("notion_refresh").addEventListener("click", refreshTargets);
 $("notion_targets_none").addEventListener("click", clearChosenTargets);
+$("notion_include_pages").addEventListener("change", saveIncludePages);

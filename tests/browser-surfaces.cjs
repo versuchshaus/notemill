@@ -54,7 +54,8 @@ const notion = `var LRNotion = {
     {accessToken:'test-only',workspaceName:'Test workspace',targets:[{id:'test-db',type:'database',title:'Reading notes'}]},
   save: async patch => { window.fixtureSaved = patch; return patch; },
   disconnect: async () => ({}),
-  redirectURL: () => 'https://test.chromiumapp.org/notion'
+  redirectURL: () => 'https://test.chromiumapp.org/notion',
+  visible: (targets, includePages) => (targets || []).filter(t => includePages || t.type === 'database')
 };`;
 const folder = `var LRFolder = {
   usable: async () => null, load: async () => null,

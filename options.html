@@ -46,8 +46,12 @@
         </details>
 
         <h3 id="destinations" tabindex="-1">Destinations offered in the reader</h3>
-        <p class="hint">Tick the databases and pages you save into. The reader preselects the last
-          destination used. With nothing ticked, all available destinations are offered.</p>
+        <p class="hint">Tick the databases you save into. The reader preselects the last one used.
+          With nothing ticked, all of them are offered.</p>
+        <label class="check" for="notion_include_pages">
+          <input type="checkbox" id="notion_include_pages">
+          Also offer ordinary pages, not only databases (pages have no tags)
+        </label>
         <div id="notion_targets" class="targets" role="group" aria-labelledby="destinations"></div>
         <p id="notion_target_state" role="status" aria-live="polite"></p>
         <div class="actions">

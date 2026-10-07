@@ -84,7 +84,8 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
     }).then(function (r) {
       /* The options page asks for everything, so it can offer the choice;
          the reader gets only what was ticked there. */
-      var targets = msg.all ? r.targets : LRNotion.offered(r.targets, r.settings.chosenTargets);
+      var targets = msg.all ? r.targets
+                            : LRNotion.offered(r.targets, r.settings.chosenTargets, r.settings.includePages);
       sendResponse({ok: true, targets: targets, total: (r.targets || []).length,
                     chosen: r.settings.chosenTargets || [],
                     defaultId: r.settings.target ? r.settings.target.id : null,

@@ -2567,11 +2567,14 @@ var readability = {
 
             /* ---- destination ---- */
             var sel = document.createElement("select");
+            /* "(db)" only tells databases from pages; with databases alone it is noise. */
+            var mixed = resp.targets.some(function (x) { return x.type !== "database"; }) &&
+                        resp.targets.some(function (x) { return x.type === "database"; });
             for (var i = 0; i < resp.targets.length; i += 1) {
                 var t   = resp.targets[i];
                 var opt = document.createElement("option");
                 opt.value = t.id;
-                opt.textContent = (t.icon ? t.icon + " " : "") + t.title + (t.type === "database" ? " (db)" : "");
+                opt.textContent = (t.icon ? t.icon + " " : "") + t.title + (mixed && t.type === "database" ? " (db)" : "");
                 opt.setAttribute("data-type", t.type);
                 if (t.id === resp.defaultId) { opt.selected = true; }
                 sel.appendChild(opt);

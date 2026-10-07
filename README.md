@@ -41,7 +41,7 @@
 
 - **Read without clutter.** One click turns a busy article into a calm page: no ads, menus,
   banners or pop-ups, just the text and its pictures in a comfortable column.
-- **Send to Notion.** Choose a database or page, add tags (Notemill suggests the ones your
+- **Send to Notion.** Choose one of your databases, add tags (Notemill suggests the ones the
   database already has), press Save. Notemill creates a new Notion page with the article's
   headings, text, images and a link to the source.
 - **Save as Markdown.** A folder with the article as a `.md` file and its images, ready for
@@ -123,18 +123,22 @@ right-click the Notemill icon and choose **Options**, or click the gear in the r
    Notion's own address, which Notemill needs to create pages for you.
 3. Notion opens a sign-in window. Choose your workspace, then **select the pages and databases
    Notemill may use**. Include at least the database your articles should go into, for example
-   a *Reading list*. Notemill can only see what you select here.
-4. Back in the settings you see *Connected to* your workspace, and the destinations you
-   selected. Optionally tick the ones the reader should offer; with nothing ticked, all of
-   them are offered.
+   a *Reading list*; selecting a page also shares the databases inside it. Notemill can only
+   see what you select here.
+4. Back in the settings you see *Connected to* your workspace and your databases. Optionally
+   tick the ones the reader should offer; with nothing ticked, all of them are offered.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/readme/options-connected-dark.png">
-  <img src="assets/readme/options-connected-light.png" width="560" alt="Notemill's settings after connecting: Connected to Acme Studio, with a list of destinations to tick: Reading list, Research notes and Inbox.">
+  <img src="assets/readme/options-connected-light.png" width="560" alt="Notemill's settings after connecting: Connected to Acme Studio, with the databases Reading list and Research notes ticked as destinations.">
 </picture>
 
+**Databases, not pages.** Notemill offers your databases as destinations, because that is
+where a saved article gets properties and tags. To save into ordinary pages as well, tick
+*Also offer ordinary pages* in the settings.
+
 **Tags.** Notemill writes tags into a database's *Tags* column: a multi-select column, or a
-relation to a tags database. Pages outside a database have no tags.
+relation to a tags database.
 
 Notion is optional: reading, Markdown, copying and printing work without connecting.
 
@@ -246,7 +250,7 @@ Details, including every permission and what is stored where: [PRIVACY.md](PRIVA
 | Clicking the icon does nothing | Notemill only works on ordinary web pages, not on `chrome://` pages, the Web Store, PDFs or a new tab. Open an article and try again. A tab that was open before you installed may need a reload. |
 | The shortcut does nothing | Another extension may use it. Set your own at `chrome://extensions/shortcuts`. |
 | *Connect to Notion* fails or the window closes | Click Connect again and finish the Notion window without closing it. Make sure you installed from `notemill.zip`. |
-| A database is missing in the reader | Notemill only sees what you selected when connecting. In Notion, open the database, choose **•••** → *Connections* → *Notemill*. Then press *refresh list* in the reader. |
+| A database is missing in the reader | Notemill only sees what you selected when connecting. In Notion, open the database, choose **•••** → *Connections* → *Notemill*. Then press *Refresh list* in the settings. Notion can take a minute before a newly shared database appears. |
 | Tags are not saved | The database needs a *Tags* column: multi-select, or a relation to a tags database. |
 | Some pictures are missing | Some sites block downloads of their images. The text is saved; the result says how many pictures could not be read. |
 | Notemill disappeared after a restart | The `notemill` folder was moved or deleted, or the developer-mode reminder was answered with *Disable*. Re-enable it at `chrome://extensions`. |

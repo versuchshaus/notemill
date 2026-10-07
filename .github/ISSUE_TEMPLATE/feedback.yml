@@ -1,0 +1,56 @@
+name: Share feedback
+description: Tell us how Notemill worked for you. Good, bad or confusing, all of it helps.
+title: "Feedback: "
+labels: ["feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for trying Notemill. Short answers are perfect, and every field except the
+        first is optional.
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did installing go?
+      options:
+        - Smooth, no problems
+        - It worked, but I had to try a few things
+        - I got stuck (please say where below)
+    validations:
+      required: true
+  - type: checkboxes
+    id: tried
+    attributes:
+      label: What did you try?
+      options:
+        - label: The reading view
+        - label: Connect to Notion
+        - label: Send to Notion
+        - label: Send to Notion with tags
+        - label: Save .md
+        - label: Copy Markdown
+        - label: Print
+  - type: textarea
+    id: worked
+    attributes:
+      label: What worked well?
+  - type: textarea
+    id: confusing
+    attributes:
+      label: What was confusing, or did not work?
+      description: The more concrete, the better. A screenshot helps a lot; you can paste it here.
+  - type: textarea
+    id: daily
+    attributes:
+      label: What would make you use Notemill every day?
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and operating system
+      placeholder: e.g. Chrome 141 on macOS, Arc on Windows
+  - type: input
+    id: version
+    attributes:
+      label: Notemill version
+      description: Shown next to the name on chrome://extensions.
+      placeholder: e.g. 1.9.0

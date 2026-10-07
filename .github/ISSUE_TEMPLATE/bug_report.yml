@@ -1,0 +1,44 @@
+name: Report a problem
+description: Something broke, looked wrong, or did not do what you expected.
+title: "Problem: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you saw, including any message Notemill showed. A screenshot helps.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: What did you do just before?
+      placeholder: |
+        1. Opened an article
+        2. Clicked Send to Notion
+        3. ...
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect instead?
+  - type: input
+    id: page
+    attributes:
+      label: Article address (only if the page is public)
+      description: For problems with the reading view. Leave this empty for private or paywalled pages.
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and operating system
+      placeholder: e.g. Chrome 141 on macOS
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Notemill version
+      description: Shown next to the name on chrome://extensions.
+      placeholder: e.g. 1.9.0
+    validations:
+      required: true

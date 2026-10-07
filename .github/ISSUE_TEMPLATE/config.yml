@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ideas and questions
+    url: https://github.com/versuchshaus/notemill/discussions
+    about: Suggest a feature, ask how something works, or talk with other testers.
+  - name: Install guide
+    url: https://github.com/versuchshaus/notemill#install-in-3-minutes
+    about: Step-by-step installation with pictures.

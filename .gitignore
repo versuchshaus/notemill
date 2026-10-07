@@ -1,16 +1,37 @@
-# build artifact produced by `make`
+# Build output from `make` / `make release`
 *.zip
+*.crx
+*.xpi
+build/
 
-.DS_Store
+# Notion app credentials - never commit, never publish.
+# Any notion-config*.js except the example, so a Finder copy
+# ("notion-config copy.js") or a .local/.bak variant cannot slip in.
+notion-config*.js
+!notion-config.example.js
 
-# local Notion app credentials - never commit, never publish
-notion-config.js
+# Signing keys and other key material, under any name
+*.pem
+*.key
+*.p12
 
-# extension signing key - keep out of git
-key.pem
-notemill-key.pem
-
-# generated from manifest.base.json by tools/manifest.py (carries the pinned id)
+# Generated from manifest.base.json by tools/manifest.py (carries the pinned id)
 manifest.json
 
-build/
+# Token exchange (server/): local secrets and tooling state
+.dev.vars
+.env
+.env.*
+.wrangler/
+node_modules/
+
+# Private working notes and history backups stay on the machine
+.private/
+*.bundle
+
+# Editors, OS, assistants
+.DS_Store
+._*
+.claude/
+.vscode/
+.idea/

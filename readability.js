@@ -122,6 +122,15 @@ var readability = {
            own candidate list and does not survive the rewrite. */
         readability.upgradeImages(document);
 
+        /* Text the user selected before pressing Notemill is what they want,
+           so it replaces the guess grabArticle would make. Read it now, with
+           the images already upgraded: prepDocument rewrites document.body,
+           after which the selection points at nodes that no longer exist. */
+        var picked = null;
+        try { picked = readability.captureSelection(); }
+        catch (e) { dbg("Could not copy the selection, reading the whole page: " + e); }
+        if (picked) { nextPageLink = null; }
+
         readability.prepDocument();
 
         /* Build readability's DOM tree */
@@ -129,18 +138,11 @@ var readability = {
         var innerDiv       = document.createElement("DIV");
         var articleTools   = readability.getArticleTools();
         var articleTitle   = readability.getArticleTitle();
-        var articleContent = readability.grabArticle();
+        var articleContent = picked ? readability.selectionArticle(picked) : readability.grabArticle();
         var articleFooter  = readability.getArticleFooter();
 
         if(!articleContent) {
-            articleContent    = document.createElement("DIV");
-            articleContent.id = "readability-content";
-            articleContent.innerHTML = [
-                "<p>Sorry, readability was unable to parse this page for content. If you feel like it should have been able to, please <a href='http://code.google.com/p/arc90labs-readability/issues/entry'>let us know by submitting an issue.</a></p>",
-                (readability.frameHack ? "<p><strong>It appears this page uses frames.</strong> Unfortunately, browser security properties often cause Readability to fail on pages that include frames. You may want to try running readability itself on this source page: <a href='" + readability.biggestFrame.src + "'>" + readability.biggestFrame.src + "</a></p>" : ""),
-                "<p>Also, please note that Readability does not play very nicely with front pages. Readability is intended to work on articles with a sizable chunk of text that you'd like to read comfortably. If you're using Readability on a landing page (like nytimes.com for example), please click into an article first before using Readability.</p>"
-            ].join('');
-
+            articleContent = readability.nothingFound();
             nextPageLink = null;
         }
 
@@ -170,6 +172,9 @@ var readability = {
 
       /* Glue the structure of our document together. */
       innerDiv.appendChild( articleTitle   );
+        /* Say that this is a part, not the page: the note sits outside
+           #readability-content, so Markdown and Notion get only the text. */
+        if (picked) { innerDiv.appendChild(readability.selectionNote()); }
         innerDiv.appendChild( articleContent );
         innerDiv.appendChild( articleFooter  );
          overlay.appendChild( articleTools   );
@@ -300,17 +305,14 @@ var readability = {
         }
 
         /**
-         * If someone tries to use Readability on a site's root page, give them a warning about usage.
+         * On a site's start page whatever was found is likely one teaser of
+         * many, so say so before showing it. Not when the user selected the
+         * text themselves, and not when nothing was found at all.
         **/
-        if((window.location.protocol + "//" + window.location.host + "/") === window.location.href)
+        if (!picked && !articleContent.hasAttribute("data-notemill-empty") &&
+            (window.location.protocol + "//" + window.location.host + "/") === window.location.href)
         {
-            articleContent.style.display = "none";
-            var rootWarning = document.createElement('p');
-                rootWarning.id = "readability-warning";
-                rootWarning.innerHTML = "<em>Readability</em> was intended for use on individual articles and not home pages. " +
-                    "If you'd like to try rendering this page anyway, <a onClick='javascript:document.getElementById(\"readability-warning\").style.display=\"none\";document.getElementById(\"readability-content\").style.display=\"block\";'>click here</a> to continue.";
-
-            innerDiv.insertBefore( rootWarning, articleContent );
+            innerDiv.insertBefore(readability.homePageWarning(articleContent), articleContent);
         }
 
         readability.postProcessContent(articleContent);
@@ -535,6 +537,241 @@ var readability = {
         articleFooter.id = "readFooter";
         articleFooter.innerHTML = "<div id='rdb-footer-print'>Excerpted from <cite>" + document.title + "</cite><br><a href=\"" + window.location.href + "\">" + window.location.href + "</a></div>";
         return articleFooter;
+    },
+
+    /* Fewer characters than this are most likely a stray double-click on a
+       word, not a passage someone wants to keep. */
+    SELECTION_MIN_CHARS: 20,
+
+    /* The first ancestor that can stand on its own when a selection inside it
+       is copied: a list keeps its <ul>, a table row its <table>, a quote its
+       <blockquote>, a sentence its <p>. */
+    SELECTION_STANDALONE: /^(P|DIV|UL|OL|DL|TABLE|PRE|BLOCKQUOTE|H[1-6]|ARTICLE|SECTION|MAIN|ASIDE|HEADER|FOOTER|FIGURE|DETAILS|FORM)$/,
+
+    /**
+     * What the user selected on the page before pressing Notemill, as a
+     * detached copy, or null when nothing worth keeping is selected.
+     *
+     * This is the way to keep part of a page that is not one article - a
+     * start page, a section front, a page Notemill cannot parse - or just the
+     * passage that matters. Must run before prepDocument rewrites the body.
+     *
+     * @return Element|null
+     */
+    captureSelection: function () {
+        var sel = window.getSelection ? window.getSelection() : null;
+        if (!sel || sel.isCollapsed || !sel.rangeCount) { return null; }
+        /* Text marked inside a search box or a form field is not the page. */
+        var active = document.activeElement;
+        if (active && /^(INPUT|TEXTAREA)$/.test(active.tagName)) { return null; }
+
+        var box = document.createElement("div");
+        for (var r = 0; r < sel.rangeCount; r += 1) {
+            var range = sel.getRangeAt(r);
+            if (range.collapsed) { continue; }
+            /* cloneContents keeps only what lies inside the common ancestor,
+               so a selection within one list or table would lose the list or
+               table around it. Rebuild those containers, empty but for the
+               copy, up to the first one that can stand alone. */
+            var copy = range.cloneContents();
+            var node = range.commonAncestorContainer;
+            if (node.nodeType !== 1) { node = node.parentNode; }
+            /* Elements only: a selection inside shadow DOM ends at a shadow
+               root, which cannot be cloned. */
+            while (node && node.nodeType === 1 && node !== document.body && node !== document.documentElement) {
+                var shell = node.cloneNode(false);
+                shell.removeAttribute("id");
+                shell.appendChild(copy);
+                copy = shell;
+                if (readability.SELECTION_STANDALONE.test(node.nodeName)) { break; }
+                node = node.parentNode;
+            }
+            box.appendChild(copy);
+        }
+
+        /* Clean before measuring: text inside an icon, a button or a <style>
+           block is not something anyone selected to keep. */
+        readability.cleanSelection(box);
+
+        var size = function (el) { return (el.textContent || "").replace(/\s+/g, "").length; };
+        if (size(box) < readability.SELECTION_MIN_CHARS && !box.querySelector("img")) {
+            /* Text the browser shows as selected but no element could be
+               copied from - typically inside a web component's shadow DOM,
+               where the range collapses onto the component. Keep the words,
+               one paragraph per line. */
+            var plain = String(sel.toString() || "").trim();
+            if (plain.replace(/\s+/g, "").length < readability.SELECTION_MIN_CHARS) { return null; }
+            box = document.createElement("div");
+            plain.split(/\n+/).forEach(function (line) {
+                if (!line.trim()) { return; }
+                var p = document.createElement("p");
+                p.textContent = line.trim();
+                box.appendChild(p);
+            });
+        }
+
+        /* Resolve addresses now, while the page's own <base> still applies:
+           the reader replaces <head> later. */
+        var i, imgs = box.querySelectorAll("img[src]"), links = box.querySelectorAll("a[href]");
+        for (i = 0; i < imgs.length; i += 1) { imgs[i].setAttribute("src", imgs[i].src); }
+        for (i = 0; i < links.length; i += 1) {
+            if (!/^\s*(javascript|data|vbscript):/i.test(links[i].getAttribute("href"))) {
+                links[i].setAttribute("href", links[i].href);
+            }
+        }
+        return box;
+    },
+
+    /* Containers the Markdown and Notion converters do not step into: with
+       paragraphs inside, they would be flattened into one run-on line. */
+    SELECTION_FLATTENED: /^(FORM|CENTER|FONT|NAV|DETAILS|DL|FIGURE|FIELDSET|ADDRESS|HGROUP|SEARCH)$/,
+    SELECTION_BLOCKS: "p, div, ul, ol, h1, h2, h3, h4, h5, h6, blockquote, pre, table, section, article, figure",
+
+    /**
+     * Tidy a selection copy in place.
+     *
+     * Only what can never be content is removed - the user chose the rest, so
+     * none of grabArticle's guessing about link density or class names
+     * applies. What goes is also what the Markdown and Notion export skip
+     * (SVG icons, buttons, form fields), so the reader shows what is saved.
+     *
+     * Containers the exporters would flatten become plain <div>s, the way
+     * grabArticle turns its unusual candidates into <div>s: custom elements,
+     * forms, <center> and the like, and a <figure> without a picture.
+     *
+     * @param Element
+     * @return void
+     */
+    cleanSelection: function (root) {
+        var junk = root.querySelectorAll("script, style, noscript, template, iframe, object, embed, " +
+                                         "svg, button, input, select, textarea, link, meta, dialog");
+        for (var j = junk.length - 1; j >= 0; j -= 1) {
+            if (junk[j].parentNode) { junk[j].parentNode.removeChild(junk[j]); }
+        }
+        var all = root.querySelectorAll("*");
+        for (var i = all.length - 1; i >= 0; i -= 1) {
+            var el = all[i], tag = el.nodeName;
+            var odd = tag.indexOf("-") !== -1 || readability.SELECTION_FLATTENED.test(tag);
+            if (tag === "FIGURE" && el.querySelector("img")) { odd = false; }
+            if (!odd || !el.querySelector(readability.SELECTION_BLOCKS)) { continue; }
+            var div = document.createElement("div");
+            while (el.firstChild) { div.appendChild(el.firstChild); }
+            el.parentNode.replaceChild(div, el);
+        }
+    },
+
+    /**
+     * The reader's article built from a selection, already tidied by
+     * cleanSelection.
+     *
+     * @param Element  the copy from captureSelection
+     * @return Element #readability-content
+     */
+    selectionArticle: function (picked) {
+        /* Inline handlers would run again once the copy is in the page. */
+        var all = picked.getElementsByTagName("*");
+        for (var a = 0; a < all.length; a += 1) {
+            for (var k = all[a].attributes.length - 1; k >= 0; k -= 1) {
+                if (/^on/i.test(all[a].attributes[k].name)) { all[a].removeAttribute(all[a].attributes[k].name); }
+            }
+        }
+        readability.cleanStyles(picked);
+
+        var articleContent = document.createElement("DIV");
+        articleContent.id = "readability-content";
+        articleContent.setAttribute("data-notemill-selection", "");
+        var page = document.createElement("DIV");
+        page.id = "readability-page-1";
+        page.className = "page";
+        while (picked.firstChild) { page.appendChild(picked.firstChild); }
+        articleContent.appendChild(page);
+        return articleContent;
+    },
+
+    /** The line under the title that says this is a part of the page. */
+    selectionNote: function () {
+        var note = document.createElement("p");
+        note.id = "readSelectionNote";
+        note.className = "lr-meta";
+        note.textContent = "Only the part you selected. For the whole page, press Exit Reader and open " +
+                           "Notemill again without selecting anything.";
+        return note;
+    },
+
+    /* Said by Save .md, Copy Markdown and Send to Notion when there is no
+       article: the empty-page message itself is not worth saving. */
+    NOTHING_TO_SAVE: "There is no article here to save. Press Exit Reader, select the part you want, " +
+                     "and open Notemill again.",
+
+    /**
+     * What the reader shows when it finds no article: what happened, and the
+     * two things that help - selecting the part to keep, or trying again once
+     * the page has finished loading. Marked, so nothing tries to save it.
+     *
+     * @return Element #readability-content
+     */
+    nothingFound: function () {
+        var box = document.createElement("DIV");
+        box.id = "readability-content";
+        box.setAttribute("data-notemill-empty", "");
+        function para(text) {
+            var p = document.createElement("p");
+            p.textContent = text;
+            box.appendChild(p);
+            return p;
+        }
+        para("Notemill could not find an article on this page.");
+        para("To keep part of it anyway, press Exit Reader, select the text you want, and open Notemill " +
+             "again. Only your selection is then shown and saved.");
+        para("If the page was still loading, press Exit Reader and try again in a moment.");
+        if (readability.frameHack && readability.biggestFrame && readability.biggestFrame.src) {
+            var p = para("This page is built from frames. Open the largest one on its own and try there: ");
+            var a = document.createElement("a");
+            a.href = readability.biggestFrame.src;
+            a.textContent = readability.biggestFrame.src;
+            p.appendChild(a);
+        }
+        return box;
+    },
+
+    /**
+     * Shown above what was found on a site's start page, which is usually one
+     * teaser of many: say so, offer the selection route, and show the find
+     * only on request.
+     *
+     * @param Element #readability-content, hidden until asked for
+     * @return Element
+     */
+    homePageWarning: function (articleContent) {
+        articleContent.style.display = "none";
+        var box = document.createElement("div");
+        box.id = "readability-warning";
+        var first = document.createElement("p");
+        first.textContent = "This is a site's start page, not an article, so what Notemill found here " +
+                            "may be just one teaser of many. ";
+        var show = document.createElement("a");
+        show.href = "#";
+        show.setAttribute("role", "button");
+        show.textContent = "Show what was found";
+        show.addEventListener("click", function (e) {
+            e.preventDefault();
+            articleContent.style.display = "";
+            if (box.parentNode) { box.parentNode.removeChild(box); }
+        });
+        /* It acts as a button, so Space must work as on one; stopped here,
+           Space does not reach the reader's page-scroll handler. */
+        show.addEventListener("keydown", function (e) {
+            if (e.key !== " " && e.key !== "Spacebar") { return; }
+            e.preventDefault();
+            e.stopPropagation();
+            show.click();
+        });
+        first.appendChild(show);
+        var second = document.createElement("p");
+        second.textContent = "To keep a particular part, press Exit Reader, select it, and open Notemill again.";
+        box.appendChild(first);
+        box.appendChild(second);
+        return box;
     },
 
     /**
@@ -2502,6 +2739,11 @@ var readability = {
         function show(nodes, ms, kind) {
             readability.writeRow("send-notion", nodes, ms, kind, generation);
         }
+        /* Function declarations hoist, so show() is ready here. */
+        if (content.hasAttribute("data-notemill-empty")) {
+            show([readability.NOTHING_TO_SAVE], 0, "error");
+            return;
+        }
         function link(label, href, onclick, cls) {
             var a = document.createElement("a");
             a.textContent = label; a.href = href || "#";
@@ -2964,7 +3206,11 @@ var readability = {
                 else if (tag === "HR")  { out.push("---"); }
                 else if (tag === "TABLE" || tag === "DIV" || tag === "SECTION" ||
                          tag === "ARTICLE" || tag === "MAIN" || tag === "SPAN" ||
-                         tag === "HEADER" || tag === "FOOTER" || tag === "ASIDE") {
+                         tag === "HEADER" || tag === "FOOTER" || tag === "ASIDE" ||
+                         /* As toNotionBlocks does: paragraphs in a layout table's
+                            cells stay paragraphs instead of running together. */
+                         tag === "THEAD" || tag === "TBODY" || tag === "TFOOT" ||
+                         tag === "TR" || tag === "TD" || tag === "TH") {
                     var nested = block(n, depth);
                     if (nested.trim()) { out.push(nested); }
                 }
@@ -3236,6 +3482,8 @@ var readability = {
                                      done ? "done" : "error", generation);
             }
         }
+
+        if (content.hasAttribute("data-notemill-empty")) { say(readability.NOTHING_TO_SAVE); return; }
 
         if (how === "copy") {
             readability.writeRow(owner, ["Copying Markdown…"], 0, "busy", generation);

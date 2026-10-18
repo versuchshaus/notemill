@@ -13,6 +13,7 @@ function fixture() {
       openOptionsPage:async () => {opened.push('default');}
     },
     action:{onClicked:{addListener() {}}},
+    commands:{onCommand:{addListener() {}}},
     tabs:{create:async opts => {opened.push(opts.url);}}
   };
   vm.runInNewContext(fs.readFileSync(require.resolve('../sw.js'),'utf8'),{chrome,console});
@@ -24,6 +25,32 @@ function fixture() {
   }
   return {route,opened,chrome,listeners};
 }
+
+test('the worker starts without a commands API', () => {
+  const chrome = {
+    runtime:{id:'x', onInstalled:{addListener() {}}, onMessage:{addListener() {}}, getURL:f => f},
+    action:{onClicked:{addListener() {}}}, tabs:{}
+  };
+  assert.doesNotThrow(() => vm.runInNewContext(fs.readFileSync(require.resolve('../sw.js'),'utf8'),{chrome,console}));
+});
+
+test('the keyboard shortcut opens the reader in the tab it was pressed in', async () => {
+  let onCommand, injected = [];
+  const chrome = {
+    runtime:{id:'x', onInstalled:{addListener() {}}, onMessage:{addListener() {}}, getURL:f => f},
+    action:{onClicked:{addListener() {}}},
+    commands:{onCommand:{addListener(fn) { onCommand = fn; }}},
+    scripting:{executeScript:async opts => { injected.push(opts); }},
+    tabs:{query:(q, cb) => cb([{id: 9}])}
+  };
+  vm.runInNewContext(fs.readFileSync(require.resolve('../sw.js'),'utf8'),{chrome,console});
+  onCommand('open-reader', {id: 7});
+  onCommand('something-else', {id: 8});
+  onCommand('open-reader');          // older Firefox: no tab passed
+  await new Promise(r => setTimeout(r, 0));
+  assert.deepEqual(injected.map(o => o.target.tabId), [7, 9]);
+  assert.deepEqual(Array.from(injected[0].files), ['readability.js', 'content.js']);
+});
 test('approved recovery sections open local URLs and acknowledge success',async () => {
   const {route,opened} = fixture();
   for (const at of ['notion','destinations','folder','appearance','custom-css']) {

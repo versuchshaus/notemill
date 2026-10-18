@@ -157,6 +157,17 @@ body {
   margin-top: 0.2em;
 }
 
+/* Said once, quietly, between the title and the text it qualifies. */
+#readSelectionNote {
+  margin: -0.6em 0 2em;
+}
+
+/* A start page: the explanation reads as an aside, not as the article. */
+#readability-warning {
+  color: var(--lr-muted);
+  margin: 0 0 2em;
+}
+
 /* ---- prose -------------------------------------------------------------- */
 
 p {
@@ -901,6 +912,8 @@ th {
   /* Nothing of the interface belongs on paper. */
   #readTools,
   #readMarkdownStatus,
+  #readSelectionNote,
+  #readability-warning,
   #readTools .lr-suggest {
     display: none !important;
   }

@@ -29,6 +29,10 @@
           <button type="button" id="notion_disconnect">Disconnect</button>
         </div>
         <p id="notion_state" role="status" aria-live="polite">Not connected.</p>
+        <p id="notion_source" role="status" aria-live="polite"></p>
+        <div class="actions" id="notion_source_actions" hidden>
+          <button type="button" id="notion_use_builtin">Use the built-in connection</button>
+        </div>
 
         <details id="notion_app">
           <summary>Notion app credentials</summary>
@@ -42,7 +46,10 @@
           <input type="text" id="notion_client_id" autocomplete="off" spellcheck="false">
           <label for="notion_client_secret">OAuth client secret</label>
           <input type="password" id="notion_client_secret" autocomplete="off">
-          <p class="hint">Stored only in this browser profile. Leave both empty to use the shipped app.</p>
+          <p class="hint">Stored only in this browser profile. Fill in both to sign in with your own
+            Notion app<span id="notion_builtin_hint"> instead of the built-in connection. Leave both
+            empty to use the built-in one</span>.</p>
+          <p id="notion_typed" role="status" aria-live="polite"></p>
         </details>
 
         <h3 id="destinations" tabindex="-1">Destinations offered in the reader</h3>

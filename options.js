@@ -100,29 +100,113 @@ function saveTheme() {
 
 /* ---- Notion ---- */
 
-function renderNotion(settings) {
-  $("notion_client_id").value     = settings.clientId     || "";
-  $("notion_client_secret").value = settings.clientSecret || "";
+/* The settings as last rendered, so typing can be told apart from what is saved. */
+var storedNotion = {};
 
-  /* With an app shipped in notion-config.js there is nothing to fill in, so
-     the credentials stay folded away; without one, they are the first thing
-     that needs doing and the section opens itself. */
-  var cred = LRNotion.credentials(settings);
-  $("notion_app").open = !cred.ready && !settings.accessToken;
-  $("notion_connect").disabled = !cred.ready;
-  if (!cred.ready) {
-    flash($("notion_target_state"),
-          cred.clientId ? "Add a client secret, or a token exchange URL, to enable Connect."
-                        : "Add an app below, or ship one in notion-config.js, to enable Connect.", "hint");
+/**
+ * Say which Notion app signs in, whenever that is not simply the built-in one.
+ *
+ * Notemill uses either the user's own app or the built-in connection, never a
+ * mix (see LRNotion.credentials). When own credentials are saved although a
+ * built-in connection exists, that is said out loud, with one click back to
+ * the built-in connection: forgotten credentials from an earlier test are
+ * otherwise invisible, and Notion's refusal of them looks like a broken sign-in.
+ * This describes what is saved; renderTyped() describes what is being typed.
+ */
+function renderSource(cred, settings) {
+  var text = "", cls = "hint";
+  if (cred.conflict && cred.ready) {
+    text = "Your own Notion app is saved under Notion app credentials, so Notemill signs in with it " +
+           "instead of its built-in connection.";
+    cls = "warn";
+  } else if (cred.conflict) {
+    text = "Part of your own Notion app is saved under Notion app credentials: " +
+           (cred.ownClientId ? "a client ID without its secret" : "a client secret without its client ID") +
+           ". Notemill uses either your own app or its built-in connection, so it cannot sign in. " +
+           "Fill in the missing field, or use the built-in connection.";
+    cls = "warn";
+  } else if (cred.problem === "own-incomplete") {
+    text = cred.ownClientId ? "Add your Notion app's client secret below to enable Connect."
+                            : "Add your Notion app's OAuth client ID below to enable Connect.";
+  } else if (cred.problem === "none") {
+    text = "Add your own Notion app below, or ship one in notion-config.js, to enable Connect.";
+  } else if (cred.problem === "config-incomplete") {
+    text = "notion-config.js has a client ID but neither a client secret nor a token exchange, " +
+           "so Connect cannot work.";
+    cls = "err";
+  } else if (cred.problem === "config-both") {
+    text = "notion-config.js sets both a client secret and a token exchange. Notemill signs in with " +
+           "the secret and ignores the exchange. Remove one of them.";
+    cls = "warn";
+  } else if (settings && settings.accessToken && settings.connectedWith === "own" && cred.source === "builtin") {
+    /* The own app is gone from the settings, but the token in use is still
+       its token: saving keeps working only while that app exists in Notion. */
+    text = "Notemill is still connected through your own Notion app. Sign in again with the button " +
+           "above to switch to the built-in connection.";
+    cls = "warn";
   }
+  flash($("notion_source"), text, text ? cls : "");
+  $("notion_source_actions").hidden = !cred.conflict;
+  $("notion_builtin_hint").hidden = !cred.builtIn;
+}
 
-  var connected = !!settings.accessToken;
-  $("notion_disconnect").hidden = !connected;
+/**
+ * While typing: what pressing Connect would do with the fields as they are.
+ * Nothing is saved before Connect, so this never says "saved", and it sits
+ * under the fields so that the fields themselves do not move.
+ */
+function renderTyped(typed, saved) {
+  var text = "", cls = "hint";
+  var changed = typed.ownClientId !== saved.ownClientId || typed.ownClientSecret !== saved.ownClientSecret;
+  if (changed && typed.source === "own" && typed.ready && typed.builtIn) {
+    text = "When you press Connect, Notemill signs in with this Notion app instead of its built-in connection.";
+    cls = "warn";
+  } else if (changed && typed.source === "own" && !typed.ready) {
+    text = typed.ownClientId
+      ? "Enter the client secret as well" +
+        (typed.builtIn ? ", or clear the client ID to keep the built-in connection." : " to enable Connect.")
+      : "Enter the OAuth client ID as well" +
+        (typed.builtIn ? ", or clear the secret to keep the built-in connection." : " to enable Connect.");
+  } else if (changed && typed.source === "builtin") {
+    text = "When you press Connect, Notemill uses its built-in connection.";
+  }
+  flash($("notion_typed"), text, text ? cls : "");
+}
+
+/* Connected is a state, so the button says so instead of asking to connect
+   again. Pressing it still signs in again, which is how more pages are
+   shared or another workspace is chosen - when signing in is possible. */
+function renderConnectButton(connected, workspaceName, ready) {
+  var button = $("notion_connect");
+  button.textContent = connected ? "Connected to " + (workspaceName || "Notion") : "Connect to Notion";
+  button.classList.toggle("primary", !connected);
+  button.classList.toggle("connected", connected);
+  button.title = connected && ready ? "Sign in again to share more pages or to switch workspace" : "";
   if (connected) {
-    flash($("notion_state"), "Connected to " + (settings.workspaceName || "your workspace") + ".", "ok");
+    flash($("notion_state"),
+          ready ? "To share more pages or switch workspace, sign in again with the button above." : "", "hint");
   } else {
     flash($("notion_state"), "Not connected.", "");
   }
+}
+
+function renderNotion(settings) {
+  storedNotion = settings || {};
+  var cred = LRNotion.credentials(settings);
+  $("notion_client_id").value     = cred.ownClientId;
+  $("notion_client_secret").value = cred.ownClientSecret;
+
+  /* With an app shipped in notion-config.js there is nothing to fill in, so
+     the credentials stay folded away; when something there needs doing, the
+     section opens itself. */
+  $("notion_app").open = cred.conflict || !cred.ready;
+  $("notion_connect").disabled = !cred.ready;
+  renderSource(cred, settings);
+  flash($("notion_typed"), "", "");
+
+  var connected = !!settings.accessToken;
+  renderConnectButton(connected, settings.workspaceName, cred.ready);
+  $("notion_disconnect").hidden = !connected;
 
   $("notion_include_pages").checked  = !!settings.includePages;
   $("notion_include_pages").disabled = !connected;
@@ -231,36 +315,43 @@ function saveIncludePages() {
     .then(renderNotion);
 }
 
+function typedCredentials() {
+  return LRNotion.credentials({clientId: $("notion_client_id").value.trim(),
+                               clientSecret: $("notion_client_secret").value.trim()});
+}
+
 function connectNotion() {
-  var typedId     = $("notion_client_id").value.trim();
-  var typedSecret = $("notion_client_secret").value.trim();
-  var cred        = LRNotion.credentials({clientId: typedId, clientSecret: typedSecret});
+  var cred = typedCredentials();
 
   // Notion's OAuth client ID is a UUID; the integration's *name* is not it.
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cred.clientId)) {
+  if (cred.source === "own" && cred.ownClientId &&
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cred.ownClientId)) {
     flash($("notion_state"), "That is not an OAuth client ID. Open your integration's Configuration " +
       "tab and copy \"OAuth client ID\" (a UUID like 1a2b3c4d-…), not the integration name.", "err");
     return;
   }
   if (!cred.ready) {
-    flash($("notion_state"), "This build has neither a client secret nor a token exchange.", "err");
+    renderTyped(cred, LRNotion.credentials(storedNotion));
+    flash($("notion_state"), "Notemill cannot sign in yet: see the note below.", "err");
     return;
   }
   flash($("notion_state"), "Waiting for Notion…", "");
 
-  var clientId     = cred.clientId;
-  var clientSecret = cred.clientSecret;
-  var exchangeUrl  = cred.exchangeUrl;
-
-  // Persist only what was typed, so a shipped app is not copied into storage.
-  LRNotion.save({clientId: typedId, clientSecret: typedSecret})
+  /* Persist only what was typed, so the built-in app is never copied into
+     the fields for an own app (the normalised values also clear a copy an
+     earlier version left there). */
+  LRNotion.save({clientId: cred.ownClientId, clientSecret: cred.ownClientSecret})
     .then(function () { return LRNotion.requestHostPermission(); })
     .then(function (granted) {
       if (!granted) { throw new Error("Access to api.notion.com was not granted."); }
-      return LRNotion.connect(clientId, clientSecret, exchangeUrl);
+      return LRNotion.connect(cred);
     })
     .then(function (settings) {
       renderNotion(settings);
+      /* The workspace name now sits on the button, which a screen reader
+         does not announce; the status line says it once, right after. */
+      flash($("notion_state"), "Connected to " + (settings.workspaceName || "Notion") + ". To share more " +
+            "pages or switch workspace, sign in again with the button above.", "ok");
       return refreshTargets();
     })
     .catch(function (err) { flash($("notion_state"), err.message, "err"); });
@@ -268,6 +359,15 @@ function connectNotion() {
 
 function disconnectNotion() {
   LRNotion.disconnect().then(renderNotion);
+}
+
+/* One click out of a conflict: forget the own app, keep any connection the
+   user already has, and leave the keyboard on the button that signs in. */
+function useBuiltinConnection() {
+  LRNotion.save({clientId: "", clientSecret: ""}).then(function (settings) {
+    renderNotion(settings);
+    $("notion_connect").focus();
+  });
 }
 
 /**
@@ -318,10 +418,13 @@ function focusSettingsSection() {
   target.scrollIntoView({block: "center"});
 }
 
+/* While typing, Connect and the note follow the fields, so starting to fill in
+   an own app says at once that it will replace the built-in connection. */
 function updateConnectAvailability() {
-  var cred = LRNotion.credentials({clientId: $("notion_client_id").value.trim(),
-                                   clientSecret: $("notion_client_secret").value.trim()});
-  $("notion_connect").disabled = !cred.ready;
+  var typed = typedCredentials();
+  $("notion_connect").disabled = !typed.ready;
+  renderTyped(typed, LRNotion.credentials(storedNotion));
+  renderConnectButton(!!storedNotion.accessToken, storedNotion.workspaceName, typed.ready);
 }
 
 window.addEventListener("hashchange", focusSettingsSection);
@@ -350,6 +453,7 @@ $("lr_theme").addEventListener("change", saveTheme);
 $("save").addEventListener("click", saveCSS);
 $("notion_connect").addEventListener("click", connectNotion);
 $("notion_disconnect").addEventListener("click", disconnectNotion);
+$("notion_use_builtin").addEventListener("click", useBuiltinConnection);
 $("notion_refresh").addEventListener("click", refreshTargets);
 $("notion_targets_none").addEventListener("click", clearChosenTargets);
 $("notion_include_pages").addEventListener("change", saveIncludePages);

@@ -36,27 +36,87 @@ var LRNotion = (function () {
   }
 
   /**
-   * Stored values win, so a user can still point this at their own app.
+   * Which Notion app signs in: the user's own, or the one this build ships.
+   * Always exactly one of them, never a mix.
    *
-   * A sign-in needs the client id (public, it goes in the consent URL) plus
-   * *either* a client secret here or an `exchangeUrl` - a small endpoint that
-   * holds the secret and performs the token exchange. The second is what a
-   * published build uses, because a secret shipped inside an extension can be
-   * read by anyone who installs it.
+   * A sign-in needs the client id (public, it goes in the consent URL) plus a
+   * way to swap the consent code for a token: the client secret, or an
+   * `exchangeUrl` - a small endpoint that holds the secret. Published builds
+   * use the exchange, because a secret shipped inside an extension can be read
+   * by anyone who installs it.
+   *
+   * Mixing the two sources is what used to go wrong. A client id typed in the
+   * settings was sent to the built-in exchange, whose secret belongs to a
+   * different app, or an old secret silently replaced the built-in connection.
+   * Notion then refused the exchange, and the browser showed its own password
+   * prompt for api.notion.com. So:
+   *
+   *   own app   both fields typed in the settings, client id and secret.
+   *             Never combined with anything from notion-config.js.
+   *   built-in  everything from notion-config.js, used only while both
+   *             fields are empty.
+   *
+   * What is not clean is reported in `problem`, for the settings page to say:
+   *   "own-incomplete"  only one of the two fields is filled
+   *   "config-both"     notion-config.js sets a secret *and* an exchange; the
+   *                     secret is used and the exchange ignored
+   *   "config-incomplete" notion-config.js has a client id but no way to
+   *                     exchange the code
+   *   "none"            no app at all
+   * and `conflict` is true while an own app replaces an available built-in one.
+   *
+   * Before 1.9.1 a sign-in through the built-in app also stored its client id
+   * in the settings (and, in a build whose notion-config.js held a secret,
+   * that secret too, possibly one rotated since), where it looked like an
+   * own app. A client id names exactly one Notion integration, so the
+   * built-in id is never an own app: such a copy is ignored whatever secret
+   * sits next to it.
    */
   function credentials(settings) {
     var d = appDefaults();
-    var clientId     = (settings && settings.clientId)     || d.clientId;
-    var clientSecret = (settings && settings.clientSecret) || d.clientSecret;
-    var exchangeUrl  = (settings && settings.exchangeUrl)  || d.exchangeUrl;
-    return {
-      clientId:     clientId,
-      clientSecret: clientSecret,
-      exchangeUrl:  exchangeUrl,
-      ready:        !!(clientId && (clientSecret || exchangeUrl)),
-      viaExchange:  !!(exchangeUrl && !clientSecret),
-      fromApp:      !(settings && settings.clientId) && !!d.clientId
-    };
+    var s = settings || {};
+    var ownId     = String(s.clientId || "").trim();
+    var ownSecret = String(s.clientSecret || "").trim();
+    var builtIn   = !!(d.clientId && (d.clientSecret || d.exchangeUrl));
+    if (ownId && ownId === d.clientId && (builtIn || !ownSecret || ownSecret === d.clientSecret)) {
+      ownId = ""; ownSecret = "";
+    }
+
+    var base = {ownClientId: ownId, ownClientSecret: ownSecret, builtIn: builtIn, conflict: false};
+
+    if (ownId || ownSecret) {
+      var complete = !!(ownId && ownSecret);
+      return Object.assign(base, {
+        source:       "own",
+        clientId:     ownId,
+        clientSecret: ownSecret,
+        exchangeUrl:  "",
+        ready:        complete,
+        viaExchange:  false,
+        conflict:     builtIn,
+        problem:      complete ? "" : "own-incomplete"
+      });
+    }
+    if (builtIn) {
+      return Object.assign(base, {
+        source:       "builtin",
+        clientId:     d.clientId,
+        clientSecret: d.clientSecret,
+        exchangeUrl:  d.clientSecret ? "" : d.exchangeUrl,
+        ready:        true,
+        viaExchange:  !d.clientSecret,
+        problem:      (d.clientSecret && d.exchangeUrl) ? "config-both" : ""
+      });
+    }
+    return Object.assign(base, {
+      source:       "none",
+      clientId:     "",
+      clientSecret: "",
+      exchangeUrl:  "",
+      ready:        false,
+      viaExchange:  false,
+      problem:      d.clientId ? "config-incomplete" : "none"
+    });
   }
 
   function load() {
@@ -167,7 +227,13 @@ var LRNotion = (function () {
     return fetch(API + path, {
       method:  method || "GET",
       headers: headers,
-      body:    body ? JSON.stringify(body) : undefined
+      body:    body ? JSON.stringify(body) : undefined,
+      /* Notion answers a refused client secret with 401 and
+         "WWW-Authenticate: Basic". With credentials allowed the browser turns
+         that into its own username and password prompt for api.notion.com;
+         omitted, the refusal comes back here and Notemill can say what is
+         wrong. The Authorization header is sent either way. */
+      credentials: "omit"
     }).then(function (res) {
       return res.text().then(function (text) {
         var json = null;
@@ -189,15 +255,20 @@ var LRNotion = (function () {
 
   /**
    * OAuth: open Notion's consent page, exchange the code for a token, and
-   * remember the workspace. The client secret is the user's own (their
-   * integration), stored locally so the exchange can run from the browser.
+   * remember the workspace.
+   *
+   * Takes the app `credentials()` chose and nothing else, so an own app never
+   * borrows the built-in exchange and the built-in app never borrows a typed
+   * secret. The app's client id and secret are not written back to the
+   * settings: those fields hold only what the user typed.
+   *
+   * @param Object cred  the result of credentials()
    */
-  /**
-   * @param String clientId
-   * @param String clientSecret  may be empty when exchangeUrl is given
-   * @param String exchangeUrl   endpoint that swaps the code for a token
-   */
-  function connect(clientId, clientSecret, exchangeUrl) {
+  function connect(cred) {
+    cred = cred || {};
+    var clientId     = cred.clientId || "";
+    var clientSecret = cred.clientSecret || "";
+    var exchangeUrl  = cred.exchangeUrl || "";
     if (!clientId) {
       return Promise.reject(fail("Enter the integration's OAuth client ID first.", "config"));
     }
@@ -228,19 +299,26 @@ var LRNotion = (function () {
         grant_type:   "authorization_code",
         code:         code,
         redirect_uri: redirect
-      }, null, {Authorization: "Basic " + btoa(clientId + ":" + clientSecret)});
+      }, null, {Authorization: "Basic " + btoa(clientId + ":" + clientSecret)})
+        .catch(function (err) {
+          if (err.status !== 401 && !/invalid_client/.test(err.message)) { throw err; }
+          throw fail(cred.source === "own"
+            ? "Notion did not accept the client ID and secret of your own Notion app. Check both " +
+              "under Notion app credentials" +
+              (cred.builtIn ? ", or clear them to use the built-in connection." : ".")
+            : "Notion did not accept the client secret in notion-config.js.",
+            "invalid_client", err.status);
+        });
     }).then(function (tok) {
       if (!tok || !tok.access_token) {
         throw fail("The token exchange returned no access token.", "notoken");
       }
       return save({
-        clientId:      clientId,
-        /* Deliberately not stored when the exchange holds it. */
-        clientSecret:  clientSecret || "",
         accessToken:   tok.access_token,
         workspaceName: tok.workspace_name || "",
         workspaceId:   tok.workspace_id   || "",
-        botId:         tok.bot_id         || ""
+        botId:         tok.bot_id         || "",
+        connectedWith: cred.source || ""
       });
     });
   }
@@ -500,15 +578,22 @@ var LRNotion = (function () {
     return fetch(exchangeUrl, {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({code: code, redirect_uri: redirect})
+      body: JSON.stringify({code: code, redirect_uri: redirect}),
+      credentials: "omit"   // no browser login prompt, see request()
     }).then(function (response) {
       return response.text().then(function (text) {
         var data;
         try { data = text ? JSON.parse(text) : {}; } catch (e) { data = {}; }
         if (!response.ok) {
+          /* The exchange holds the built-in app's secret; if Notion refuses
+             it, nothing in the user's settings can fix that. */
+          if (data.error === "invalid_client") {
+            throw fail("Notion refused Notemill's built-in connection. This is not something you " +
+                       "can fix in the settings: please report it.", "exchange", response.status);
+          }
           throw fail(data.error_description || data.error ||
                      ("The token exchange failed (HTTP " + response.status + ")."),
-                     "exchange");
+                     "exchange", response.status);
         }
         return data;
       });

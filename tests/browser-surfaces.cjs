@@ -43,20 +43,28 @@ const init = `
       }
     }
   };`;
-const notion = `var LRNotion = {
-  credentials: settings => {
-    const app = localStorage.getItem('fixtureApp') !== 'missing';
-    const id = settings.clientId || (app ? '11111111-1111-1111-1111-111111111111' : '');
-    const secret = settings.clientSecret || '';
-    return {clientId:id,clientSecret:secret,ready:!!(id && (secret || app)),exchangeUrl:app ? 'https://example.invalid' : ''};
-  },
-  load: async () => localStorage.getItem('fixtureApp') === 'missing' ? {} :
-    {accessToken:'test-only',workspaceName:'Test workspace',targets:[{id:'test-db',type:'database',title:'Reading notes'}]},
-  save: async patch => { window.fixtureSaved = patch; return patch; },
-  disconnect: async () => ({}),
-  redirectURL: () => 'https://test.chromiumapp.org/notion',
-  visible: (targets, includePages) => (targets || []).filter(t => includePages || t.type === 'database')
-};`;
+// The real notion.js, so which credentials win is the shipped logic and not a
+// copy of it; only storage, permissions and the sign-in itself are replaced.
+const notion = fs.readFileSync(path.join(root,'notion.js'),'utf8') + `
+;LRNotion = (function (real) {
+  function fixture() {
+    if (localStorage.getItem('fixtureApp') === 'missing') return {};
+    return Object.assign(
+      {accessToken:'test-only',workspaceName:'Test workspace',targets:[{id:'test-db',type:'database',title:'Reading notes'}]},
+      JSON.parse(localStorage.getItem('fixtureOwn') || '{}'));
+  }
+  return Object.assign({}, real, {
+    load: async () => fixture(),
+    save: async patch => { window.fixtureSaved = patch; return Object.assign(fixture(), patch); },
+    disconnect: async () => ({}),
+    redirectURL: () => 'https://test.chromiumapp.org/notion',
+    requestHostPermission: async () => false,
+    connect: async () => { throw new Error('connect is not exercised here'); }
+  });
+}(LRNotion));`;
+// The built-in app, as a published build ships it: a client id and an exchange.
+const config = `var LR_NOTION_APP = localStorage.getItem('fixtureApp') === 'missing' ? undefined :
+  {clientId:'11111111-1111-1111-1111-111111111111', clientSecret:'', exchangeUrl:'https://example.invalid'};`;
 const folder = `var LRFolder = {
   usable: async () => null, load: async () => null,
   save: async dir => { window.fixtureFolder = dir.name; }, clear: async () => {}
@@ -66,7 +74,7 @@ const allowed = new Set(['options.html','pick.html','options.js','pick.js','ui-t
 const server = http.createServer((req, res) => {
   const name = new URL(req.url, 'http://localhost').pathname.slice(1);
   // Never serve/read real credentials, tokens or arbitrary project files.
-  const mock = {'notion.js':notion,'folder.js':folder,'notion-config.js':'// No private configuration in tests.'};
+  const mock = {'notion.js':notion,'folder.js':folder,'notion-config.js':config};
   if (!allowed.has(name) && !Object.hasOwn(mock,name)) { res.writeHead(404); res.end(); return; }
   res.setHeader('Content-Type', name.endsWith('.css') ? 'text/css' : name.endsWith('.js') ? 'text/javascript' : 'text/html');
   res.end(Object.hasOwn(mock,name) ? mock[name] : fs.readFileSync(path.join(root,name)));
@@ -94,6 +102,12 @@ const server = http.createServer((req, res) => {
     });
     assert.equal(await options.evaluate(`document.querySelector('main > section').id`),'notion');
     console.log('PASS Notion-first options and direct recovery focus');
+    assert.equal(await options.evaluate(`document.getElementById('notion_connect').textContent`),'Connected to Test workspace');
+    assert.equal(await options.evaluate(`document.getElementById('notion_connect').className`),'connected');
+    assert.equal(await options.evaluate(`document.getElementById('notion_source').textContent`),'');
+    assert.equal(await options.evaluate(`document.getElementById('notion_source_actions').hidden`),true);
+    assert.equal(await options.evaluate(`document.getElementById('notion_app').open`),false);
+    console.log('PASS connected button names the workspace and the built-in connection needs no note');
     const picker = await page('pick.html');
     for (const theme of ['dark','light']) {
       await options.evaluate(`document.getElementById('lr_theme').value = '${theme}'; document.getElementById('lr_theme').dispatchEvent(new Event('change'));`);
@@ -164,12 +178,96 @@ const server = http.createServer((req, res) => {
     assert.equal(await picker.evaluate('window.fixtureFolder'),'Test notes');
     console.log('PASS unsupported-picker error and mocked successful folder selection');
 
+    // Own credentials saved next to a built-in connection: said out loud, one click back.
+    // Page.reload returns before the new document exists, so every wait after a
+    // reload also requires a marker that only the old document carries to be gone.
+    const reload = async (ready) => {
+      await options.evaluate(`window.__oldDocument = true`);
+      await options.call('Page.reload');
+      await options.waitFor(`!window.__oldDocument && document.readyState === 'complete' && (${ready})`);
+    };
+    const text = id => options.evaluate(`document.getElementById('${id}').textContent`);
+    const prop = (id, name) => options.evaluate(`document.getElementById('${id}').${name}`);
     await options.call('Page.bringToFront');
+    await options.call('Emulation.setDeviceMetricsOverride',{width:900,height:900,deviceScaleFactor:1,mobile:false});
+    await options.evaluate(`localStorage.setItem('fixtureOwn', JSON.stringify({clientId:'aaaaaaaa-0000-4000-8000-000000000002',clientSecret:'old-secret'}))`);
+    await reload(`document.getElementById('notion_source').textContent !== ''`);
+    assert.equal(await prop('notion_source','className'),'warn');
+    assert.match(await text('notion_source'),/instead of its built-in connection/);
+    assert.equal(await prop('notion_source_actions','hidden'),false);
+    assert.equal(await prop('notion_app','open'),true);
+    assert.equal(await prop('notion_client_id','value'),'aaaaaaaa-0000-4000-8000-000000000002');
+    assert.equal(await prop('notion_builtin_hint','hidden'),false);
+    await options.evaluate(`LRUITheme.apply('dark'); window.scrollTo(0,0)`);
+    fs.writeFileSync(path.join(out,'options-conflict-dark.png'),Buffer.from((await options.call('Page.captureScreenshot',{format:'png'})).data,'base64'));
+    await options.evaluate(`document.getElementById('notion_use_builtin').click()`);
+    await options.waitFor(`document.getElementById('notion_source').textContent === ''`);
+    assert.deepEqual(await options.evaluate('window.fixtureSaved'),{clientId:'',clientSecret:''});
+    assert.equal(await prop('notion_source_actions','hidden'),true);
+    assert.equal(await prop('notion_client_id','value'),'');
+    assert.equal(await options.evaluate(`document.activeElement.id`),'notion_connect');
+    assert.equal(await text('notion_connect'),'Connected to Test workspace');
+    console.log('PASS saved own credentials are announced and one click returns to the built-in connection');
+
+    await options.evaluate(`localStorage.setItem('fixtureOwn', JSON.stringify({clientId:'aaaaaaaa-0000-4000-8000-000000000002',clientSecret:''}))`);
+    await reload(`document.getElementById('notion_source').textContent !== ''`);
+    assert.match(await text('notion_source'),/a client ID without its secret/);
+    assert.equal(await prop('notion_connect','disabled'),true);
+    assert.equal(await text('notion_state'),'', 'no advice to press a button that is disabled');
+    assert.equal(await prop('notion_connect','title'),'');
+    console.log('PASS half an own app is reported and never combined with the built-in exchange');
+
+    // The client id an earlier version copied from the built-in app is not an own app,
+    // whatever secret was stored next to it.
+    await options.evaluate(`localStorage.setItem('fixtureOwn', JSON.stringify({clientId:'11111111-1111-1111-1111-111111111111',clientSecret:'stale-secret'}))`);
+    await reload(`document.getElementById('notion_connect').textContent === 'Connected to Test workspace'`);
+    assert.equal(await text('notion_source'),'');
+    assert.equal(await prop('notion_client_id','value'),'');
+    assert.equal(await prop('notion_client_secret','value'),'');
+    assert.equal(await prop('notion_connect','disabled'),false);
+    assert.match(await text('notion_state'),/sign in again with the button above/);
+    console.log('PASS a stored copy of the built-in app is ignored');
+
+    // Signed in with an own app, which is gone from the settings since: still said.
+    await options.evaluate(`localStorage.setItem('fixtureOwn', JSON.stringify({connectedWith:'own'}))`);
+    await reload(`document.getElementById('notion_source').textContent !== ''`);
+    assert.match(await text('notion_source'),/still connected through your own Notion app/);
+    assert.equal(await prop('notion_source_actions','hidden'),true);
+    console.log('PASS a connection made with a removed own app is pointed out');
+
+    // Typing describes what Connect would do, under the fields, without claiming anything is saved.
+    await options.evaluate(`localStorage.removeItem('fixtureOwn')`);
+    await reload(`document.getElementById('notion_connect').textContent === 'Connected to Test workspace' && document.getElementById('notion_source').textContent === ''`);
+    // Position on the page, not in the window: scrolling is not what is being tested.
+    const fieldTop = () => options.evaluate(`document.getElementById('notion_client_secret').getBoundingClientRect().top + window.scrollY`);
+    await options.evaluate(`document.getElementById('notion_app').open = true; document.getElementById('notion_client_id').scrollIntoView({block: 'center'})`);
+    const before = await fieldTop();
+    await options.evaluate(`document.getElementById('notion_client_id').value = 'aaaaaaaa-0000-4000-8000-000000000002';
+      document.getElementById('notion_client_id').dispatchEvent(new Event('input'));`);
+    assert.match(await text('notion_typed'),/Enter the client secret as well, or clear the client ID to keep the built-in connection/);
+    assert.doesNotMatch(await text('notion_typed'),/saved/);
+    assert.equal(await text('notion_source'),'');
+    assert.ok(Math.abs(await fieldTop() - before) < 0.5,'typing must not move the fields');
+    assert.equal(await prop('notion_connect','disabled'),true);
+    await options.evaluate(`document.getElementById('notion_client_secret').value = 'typed-secret';
+      document.getElementById('notion_client_secret').dispatchEvent(new Event('input'));`);
+    assert.equal(await prop('notion_connect','disabled'),false);
+    assert.equal(await prop('notion_typed','className'),'warn');
+    assert.match(await text('notion_typed'),/instead of its built-in connection/);
+    await options.evaluate(`for (const id of ['notion_client_id','notion_client_secret']) {
+      document.getElementById(id).value = ''; document.getElementById(id).dispatchEvent(new Event('input')); }`);
+    assert.equal(await text('notion_typed'),'');
+    assert.equal(await prop('notion_connect','disabled'),false);
+    console.log('PASS typing an own app explains the effect live, below the fields, and clearing it returns to the built-in connection');
+
     await options.evaluate(`localStorage.setItem('fixtureApp','missing'); location.hash = 'notion'`);
-    await options.call('Page.reload');
-    await options.waitFor(`document.readyState === 'complete' && document.activeElement.id === 'notion_client_id'`);
+    await reload(`document.activeElement.id === 'notion_client_id'`);
     assert.equal(await options.evaluate(`document.getElementById('notion_app').open`),true);
     assert.equal(await options.evaluate(`document.getElementById('notion_connect').disabled`),true);
+    assert.equal(await options.evaluate(`document.getElementById('notion_connect').textContent`),'Connect to Notion');
+    assert.match(await options.evaluate(`document.getElementById('notion_source').textContent`),/Add your own Notion app below/);
+    assert.equal(await options.evaluate(`document.getElementById('notion_builtin_hint').hidden`),true,
+      'no promise of a built-in connection in a build without one');
     await options.evaluate(`document.getElementById('notion_client_id').value = '11111111-1111-1111-1111-111111111111';
       document.getElementById('notion_client_secret').value = 'test-only';
       document.getElementById('notion_client_secret').dispatchEvent(new Event('input'));`);

@@ -29,6 +29,7 @@ label { display: block; font-weight: 600; margin: 1rem 0 0.3rem; }
 .hint, .none, .kind { color: hsl(var(--muted-foreground)); }
 .ok { color: hsl(var(--success)); }
 .err { color: hsl(var(--destructive)); font-weight: 600; }
+.warn { color: hsl(var(--open-foreground)); font-weight: 600; }
 a { color: hsl(var(--open-foreground)); text-underline-offset: 0.2em; overflow-wrap: anywhere; }
 nav { display: flex; flex-wrap: wrap; gap: 0.5rem 1.1rem; margin-top: 1rem; }
 button, input, select, textarea { font: inherit; }
@@ -44,6 +45,11 @@ button { cursor: pointer; min-height: 2.5em; font-weight: 500; }
 button:hover:not(:disabled) { background: hsl(var(--secondary)); }
 button.primary { background: hsl(var(--fill-bg)); border-color: hsl(var(--fill-bg)); color: hsl(var(--primary-foreground)); font-weight: 650; }
 button.primary:hover:not(:disabled) { filter: brightness(0.94); background: hsl(var(--fill-bg)); }
+/* Connected: a state, not a call to action. Outlined and tinted with an orange
+   label, like an active trigger in the reader bar, so the only filled button
+   is the one that still asks to be pressed. */
+button.connected { border-color: hsl(var(--fill-bg)); background: hsl(var(--fill-bg) / 0.12); color: hsl(var(--open-foreground)); font-weight: 650; }
+button.connected:hover:not(:disabled) { background: hsl(var(--fill-bg) / 0.2); }
 button:disabled, select:disabled { opacity: 0.55; cursor: not-allowed; }
 :where(button, input, select, textarea, a, summary, [tabindex]):focus-visible {
   outline: 2px solid var(--lr-focus);
@@ -63,7 +69,10 @@ label.check { display: flex; align-items: center; gap: 0.55rem; font-weight: 400
 .targets label span { min-width: 0; overflow-wrap: anywhere; }
 .targets input { margin: 0; }
 .targets .kind { margin-inline-start: auto; font-size: 0.8rem; }
-[role="status"] { min-height: 1.5em; margin: 0.6rem 0 0; overflow-wrap: anywhere; }
+/* One line of text tall even when empty, so a message appearing or clearing does not move what follows. */
+[role="status"] { min-height: 1.6em; margin: 0.6rem 0 0; overflow-wrap: anywhere; }
+#notion_source:empty, #notion_typed:empty { min-height: 0; margin: 0; }
+#notion_source_actions { margin-top: 0.6rem; }
 .picker main { margin: 1rem auto; padding: 0 1rem; max-width: 32rem; }
 .picker h1 { font-size: 1.2rem; }
 .picker .card { padding: 1rem; }

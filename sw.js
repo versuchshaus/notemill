@@ -30,8 +30,9 @@ chrome.runtime.onInstalled.addListener(function (details) {
   chrome.runtime.openOptionsPage();
 });
 
-chrome.action.onClicked.addListener(function(tab) {
-  chrome.scripting.executeScript({
+function openReader(tab) {
+  if (!tab || tab.id === undefined) { return Promise.resolve(); }
+  return chrome.scripting.executeScript({
     target: {tabId: tab.id},
     // Order matters: readability.js defines the parser, content.js runs it.
     files: ["readability.js", "content.js"]
@@ -40,7 +41,38 @@ chrome.action.onClicked.addListener(function(tab) {
     // gallery, PDF viewer). Nothing we can do, so fail quietly.
     console.warn("Notemill: cannot run on this page - " + err.message);
   });
+}
+
+// A click on the toolbar button. Some browsers (Dia among them) leave the
+// keyboard in their own toolbar after that click, where the reader cannot
+// reach it: a page may not pull focus out of the browser's interface. Asking
+// for the window and the tab once more is the only lever an extension has;
+// where the browser honours it, Enter and Tab work in the reader at once.
+chrome.action.onClicked.addListener(function(tab) {
+  openReader(tab).then(function () {
+    if (tab.windowId !== undefined) {
+      chrome.windows.update(tab.windowId, {focused: true}).catch(function () {});
+    }
+    chrome.tabs.update(tab.id, {active: true}).catch(function () {});
+  });
 });
+
+// The keyboard shortcut is a command of its own, not "_execute_action": that
+// one is handled as a press of the toolbar button and moves the keyboard into
+// the toolbar like a click does. A plain command leaves focus on the page, so
+// after the shortcut Enter sends to Notion and Tab walks the reader's bar.
+// Guarded: a browser without the commands API must still get a working
+// worker, since everything else - Notion, saving - runs through it.
+if (chrome.commands && chrome.commands.onCommand) {
+  chrome.commands.onCommand.addListener(function(command, tab) {
+    if (command !== "open-reader") { return; }
+    if (tab && tab.id !== undefined) { openReader(tab); return; }
+    // Older Firefox passes no tab.
+    chrome.tabs.query({active: true, currentWindow: true}, function (tabs) {
+      openReader(tabs && tabs[0]);
+    });
+  });
+}
 
 // The reader page's "Send to Notion" button lives in the content script, which
 // cannot reach api.notion.com itself (CORS, and no host permission). It hands

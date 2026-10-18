@@ -169,6 +169,10 @@ Notion is optional: reading, Markdown, copying and printing work without connect
 2. Click the **Notemill icon**, or press **⌘⇧U** on a Mac, **Ctrl+Shift+U** on Windows and Linux.
 3. The page turns into a clean reading view. The toolbar stays at the top right while you scroll.
 
+**Only want part of a page?** Select it first, then click the Notemill icon. The reading view
+shows only your selection, and Save .md, Copy Markdown and Send to Notion keep only that part.
+This also works on start pages and other pages where Notemill finds no article.
+
 ### Send to Notion
 
 Press **Send to Notion**. A row opens directly under the button: **Save · to:** your
@@ -270,6 +274,8 @@ Details, including every permission and what is stored where: [PRIVACY.md](PRIVA
 | *Manifest file is missing or unreadable* | You selected the wrong folder, or downloaded the source code. Select the `notemill` folder from `notemill.zip`: the one containing `manifest.json`. |
 | Clicking the icon does nothing | Notemill only works on ordinary web pages, not on `chrome://` pages, the Web Store, PDFs or a new tab. Open an article and try again. A tab that was open before you installed may need a reload. |
 | The shortcut does nothing | Another extension may use it. Set your own at `chrome://extensions/shortcuts`. |
+| *Notemill could not find an article on this page* | The page is not one article, or it was still loading. Press *Exit Reader*, select the part you want, and click the icon again. Or press *Exit Reader*, wait until the page has loaded, and click the icon again. |
+| *Your own Notion app is saved…* in the settings | Old credentials are stored under *Notion app credentials*. Press *Use the built-in connection*, unless you set up your own Notion app on purpose. |
 | *Connect to Notion* fails or the window closes | Click Connect again and finish the Notion window without closing it. Make sure you installed from `notemill.zip`. |
 | A database is missing in the reader | Notemill only sees what you selected when connecting. In Notion, open the database, choose **•••** → *Connections* → *Notemill*. Then press *Refresh list* in the settings. Notion can take a minute before a newly shared database appears. |
 | Tags are not saved | The database needs a *Tags* column: multi-select, or a relation to a tags database. |

@@ -64,12 +64,34 @@ async function until(fn, message) {
     const ping = await options.evaluate(`chrome.runtime.sendMessage({type:'ping'})`);
     assert.equal(ping.ok,true); assert.equal(ping.version,manifest.version);
     assert.equal(await options.evaluate(`LRNotion.load().then(settings => !!settings.accessToken)`),false);
+    // The shortcut is a command of its own (not _execute_action), so it leaves focus on the page.
+    const commands = await options.evaluate(`chrome.commands.getAll()`);
+    const readerCommand = commands.find(c => c.name === 'open-reader');
+    assert.ok(readerCommand, 'open-reader command registered');
+    assert.ok(!commands.some(c => c.name === '_execute_action' && c.shortcut), 'the toolbar-button command has no shortcut');
+    assert.match(readerCommand.shortcut, /U$/, 'the suggested shortcut is assigned: ' + readerCommand.shortcut);
     console.log('PASS real extension installs, opens options and answers worker ping (no account connected)');
 
     const image = fs.readFileSync(path.join(root,'img/icon-128.png'));
     const paragraph = '<p>Astra integration fixture checks local article extraction and Markdown saving. This article has substantial text, meaningful paragraphs, and an image to keep beside the document. Reading and saving should retain the original source link and the complete content.</p>';
     server = http.createServer((req,res) => {
       if (req.url === '/figure.png') {res.setHeader('Content-Type','image/png'); res.end(image); return;}
+      // A page with three parts, for keeping only a selection.
+      if (req.url.startsWith('/parts')) {
+        res.setHeader('Content-Type','text/html');
+        const part = word => '<p>' + word + ' part of the page. ' + paragraph.slice(3, -4) + '</p>';
+        res.end('<!doctype html><html><head><title>Parts ' + runId + '</title></head><body><article><h1>Parts</h1>' +
+          part('ALPHA').repeat(4) + '<ul id="pick"><li>' + part('BETA') + '</li><li>' + part('BETA') + '</li></ul>' +
+          part('GAMMA').repeat(4) + '</article></body></html>');
+        return;
+      }
+      // Nothing that looks like an article: a few short links.
+      if (req.url === '/links') {
+        res.setHeader('Content-Type','text/html');
+        res.end('<!doctype html><html><head><title>Links only</title></head><body><nav>' +
+          '<a href="/a">One</a> <a href="/b">Two</a> <a href="/c">Three</a></nav></body></html>');
+        return;
+      }
       if (req.url !== '/article') {res.writeHead(404); res.end(); return;}
       res.setHeader('Content-Type','text/html');
       res.setHeader('Content-Security-Policy',"script-src 'none'; object-src 'none'");
@@ -93,6 +115,71 @@ async function until(fn, message) {
     assert.ok(await reader.evaluate(`document.getElementById('readability-content').textContent.includes('Astra integration fixture')`));
     assert.equal(await reader.evaluate(`document.querySelectorAll('#readability-content img').length`),1);
     console.log('PASS real toolbar activation grants activeTab and injects reader with shared CSS and image intact');
+
+    // Open a fixture page in its own tab, optionally select part of it, press the toolbar icon.
+    async function readerFor(pathname, select) {
+      const url = 'http://127.0.0.1:' + server.address().port + pathname;
+      const p = await connect(base); pages.push(p);
+      await p.call('Page.navigate',{url});
+      await p.waitFor(`location.href === ${JSON.stringify(url)} && document.readyState === 'complete'`);
+      if (select) await p.evaluate(select);
+      const t = await until(async () => {
+        const {targetInfos} = await browser.call('Target.getTargets',{filter:[{type:'tab'}]});
+        return targetInfos.find(x => x.url === url);
+      }, 'Missing tab target for ' + pathname);
+      await browser.call('Extensions.triggerAction',{id:extensionId,targetId:t.targetId});
+      await p.waitFor(`!!document.getElementById('readability-content') && !!document.getElementById('readTools')`);
+      return p;
+    }
+    const count = (p, word) => p.evaluate(`(document.getElementById('readability-content').textContent.match(/${word}/g) || []).length`);
+
+    // A selection replaces the guess: only the two list items, still as a list.
+    const picked = await readerFor('/parts', `(() => { const r = document.createRange();
+      r.setStart(document.querySelector('#pick li').firstChild.firstChild, 0);
+      r.setEnd(document.querySelector('#pick li:last-child').firstChild.lastChild, 20);
+      getSelection().removeAllRanges(); getSelection().addRange(r); })()`);
+    assert.equal(await count(picked,'ALPHA'),0);
+    assert.equal(await count(picked,'GAMMA'),0);
+    assert.equal(await count(picked,'BETA'),2);
+    assert.equal(await picked.evaluate(`document.querySelectorAll('#readability-content ul > li').length`),2,'the list survives');
+    assert.ok(await picked.evaluate(`!!document.getElementById('readSelectionNote')`));
+    assert.equal(await picked.evaluate(`document.getElementById('readSelectionNote').closest('#readability-content')`),null,
+      'the note is not part of what is saved');
+    console.log('PASS a selection is all the reader shows and keeps, with its list structure and a note');
+
+    // Paragraphs inside a custom element: the wrapper becomes a <div>, so they stay paragraphs.
+    const custom = await readerFor('/parts?custom', `(() => {
+      const host = document.createElement('app-article-body');
+      host.innerHTML = '<p>' + 'DELTA first paragraph of a component. '.repeat(3) + '</p><p>' + 'DELTA second paragraph. '.repeat(3) + '</p>';
+      document.querySelector('article').appendChild(host);
+      const r = document.createRange(); r.selectNodeContents(host);
+      getSelection().removeAllRanges(); getSelection().addRange(r); })()`);
+    assert.equal(await custom.evaluate(`document.querySelectorAll('#readability-content app-article-body').length`),0);
+    assert.equal(await custom.evaluate(`document.querySelectorAll('#readability-content p').length`),2);
+    assert.equal(await count(custom,'ALPHA'),0);
+    console.log('PASS a selection inside a custom element keeps its paragraphs apart');
+
+    // Without a selection the same page is read whole, with no note.
+    const whole = await readerFor('/parts?whole');
+    assert.equal(await count(whole,'ALPHA'),4);
+    assert.equal(await count(whole,'GAMMA'),4);
+    assert.equal(await whole.evaluate(`document.getElementById('readSelectionNote')`),null);
+    console.log('PASS without a selection the whole article is read as before');
+
+    // No article: Notemill's own explanation, and nothing gets saved.
+    const empty = await readerFor('/links');
+    const said = await empty.evaluate(`document.getElementById('readability-content').textContent`);
+    assert.match(said,/Notemill could not find an article on this page/);
+    assert.match(said,/select the text you want/);
+    assert.doesNotMatch(said,/readability|code\.google/i);
+    await empty.evaluate(`document.getElementById('save-markdown').click()`);
+    await empty.waitFor(`document.getElementById('readMarkdownStatus').textContent.includes('There is no article here to save')`);
+    // Escape closes the row, so Send to Notion has to write the refusal itself.
+    await empty.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}))`);
+    await empty.waitFor(`document.getElementById('readMarkdownStatus').textContent.trim() === ''`);
+    await empty.evaluate(`document.getElementById('send-notion').click()`);
+    await empty.waitFor(`document.getElementById('readMarkdownStatus').textContent.includes('There is no article here to save')`);
+    console.log('PASS a page without an article explains the selection route and refuses to save the message');
 
     await reader.evaluate(`document.getElementById('send-notion').click()`);
     await reader.waitFor(`document.getElementById('readMarkdownStatus').classList.contains('is-error')`);

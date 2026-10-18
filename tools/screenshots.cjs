@@ -68,18 +68,20 @@ function chromeMock(theme, state) {
   })();`;
 }
 
-/* Options-page stand-ins for notion.js and folder.js. */
-const NOTION_MOCK = `var LRNotion = {
-  credentials: s => ({clientId: 'public-client-id', clientSecret: '', exchangeUrl: 'https://exchange.invalid',
-                      ready: true, viaExchange: true}),
+/* Options-page stand-ins for notion.js and folder.js. The real notion.js
+   decides which Notion app is used; storage and sign-in are replaced. */
+const NOTION_MOCK = fs.readFileSync(path.join(root, 'notion.js'), 'utf8') + `
+;LRNotion = Object.assign({}, LRNotion, {
   load: async () => window.__shotState === 'connected'
     ? {accessToken: 'mock', workspaceName: 'Acme Studio', targets: ${JSON.stringify(TARGETS)},
        chosenTargets: ['reading', 'research']}
     : {},
   save: async p => p, disconnect: async () => ({}),
-  redirectURL: () => 'https://<extension-id>.chromiumapp.org/notion',
-  visible: (targets, includePages) => (targets || []).filter(t => includePages || t.type === 'database')
-};`;
+  redirectURL: () => 'https://<extension-id>.chromiumapp.org/notion'
+});`;
+/* A published build's notion-config.js: a public client id and the exchange. */
+const CONFIG_MOCK = `var LR_NOTION_APP = {clientId: 'public-client-id', clientSecret: '',
+                                    exchangeUrl: 'https://exchange.invalid'};`;
 const FOLDER_MOCK = `var LRFolder = {usable: async () => null, load: async () => null, save: async () => {}, clear: async () => {}};`;
 
 /* ---- a tiny static server: only the files the pictures need ------------- */
@@ -90,7 +92,7 @@ const SERVE = {
   '/options.html': 'options.html', '/options.js': 'options.js', '/ui-theme.js': 'ui-theme.js'
 };
 const MOCKS = {'/notion.js': NOTION_MOCK, '/folder.js': FOLDER_MOCK,
-               '/notion-config.js': '// mocked for screenshots'};
+               '/notion-config.js': CONFIG_MOCK};
 const TYPES = {'.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
                '.svg': 'image/svg+xml', '.woff': 'font/woff', '.png': 'image/png'};
 

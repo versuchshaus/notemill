@@ -72,3 +72,23 @@ test('opening errors are returned to the caller',async () => {
   assert.equal(response.ok,false);
   assert.equal(response.error,'Blocked');
 });
+
+test('the toolbar tooltip names the shortcut, or stays plain without one', async () => {
+  for (const [shortcut, expected] of [['⇧⌘U', 'Make this page readable (⇧⌘U)'], ['', 'Make this page readable']]) {
+    let title = null;
+    const chrome = {
+      runtime:{id:'x', onInstalled:{addListener() {}}, onMessage:{addListener() {}}, getURL:f => f,
+               getManifest:() => ({action:{default_title:'Make this page readable'}})},
+      action:{onClicked:{addListener() {}}, setTitle:o => { title = o.title; }},
+      commands:{onCommand:{addListener() {}}, getAll:cb => cb([{name:'open-reader', shortcut}])},
+      tabs:{}
+    };
+    let startup = null;
+    chrome.runtime.onStartup = {addListener(fn) { startup = fn; }};
+    vm.runInNewContext(fs.readFileSync(require.resolve('../sw.js'),'utf8'),{chrome,console});
+    assert.equal(title, expected);
+    // After a browser restart the session title is gone; startup puts it back.
+    title = null; startup();
+    assert.equal(title, expected);
+  }
+});

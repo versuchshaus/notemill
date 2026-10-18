@@ -144,3 +144,32 @@ test('legacy Space paging excludes editing, toolbar and handled events', () => {
   assert.equal(reader.isEditingKey({defaultPrevented: true}), true);
   assert.equal(reader.isEditingKey({target: {tagName: 'P'}}), false);
 });
+
+test('Space reads on from the preselected button and presses a button reached with Tab', () => {
+  const {reader} = fixture();
+  const scrolled = [];
+  reader.pageScroll = up => { scrolled.push(up); };
+  function press(target, extra) {
+    let prevented = false;
+    reader.barSpace(Object.assign({key: ' ', target, preventDefault() { prevented = true; }}, extra));
+    return prevented;
+  }
+  let clicks = 0;
+  const send = {tagName: 'A', click() { clicks += 1; }};
+  const save = {tagName: 'A', click() { clicks += 1; }};
+
+  reader.armed = send;                       // preselected when the reading view opens
+  assert.equal(press(send), true);
+  assert.equal(press(send, {shiftKey: true}), true);
+  assert.deepEqual(scrolled, [false, true], 'Space and Shift+Space scroll');
+  assert.equal(clicks, 0, 'never opens Send to Notion');
+
+  reader.armed = save;                       // preselected once the Notion row is open
+  press(save);
+  assert.equal(clicks, 0, 'never saves by Space');
+
+  reader.armed = null;                       // the reader moved there with Tab
+  press(save);
+  assert.equal(clicks, 1, 'a button chosen with Tab is pressed');
+  assert.equal(press({tagName: 'P'}), false, 'Space outside the buttons is left alone');
+});

@@ -43,10 +43,13 @@ function chromeMock(theme, state) {
         local: {get: (d, cb) => cb(d || {}), set: (p, cb) => cb && cb()},
         onChanged: {addListener: () => {}}
       },
+      commands: {getAll: cb => cb([{name: 'open-reader', shortcut: '⇧⌘U'}])},
+      action: {setTitle: () => {}},
+      tabs: {create: () => {}},
       runtime: {
         id: 'screenshot', lastError: null,
         getURL: p => '/' + p,
-        getManifest: () => ({version: '1.9.0'}),
+        getManifest: () => ({version: '1.9.1', action: {default_title: 'Make this page readable'}}),
         reload: () => {},
         sendMessage: (msg, cb) => {
           const reply = r => cb && setTimeout(() => cb(r), 0);

@@ -273,12 +273,7 @@ var readability = {
             }, {passive: true});
             update();
           }());
-          bar.addEventListener("keydown", function (e) {
-            if (e.key !== " " && e.key !== "Spacebar") { return; }
-            if (!e.target || e.target.tagName !== "A") { return; }
-            e.preventDefault();
-            e.target.click();
-          });
+          bar.addEventListener("keydown", readability.barSpace);
         }
       }());
 
@@ -2610,6 +2605,38 @@ var readability = {
         readability.openPanel(null);
         readability.alignRow();
         if (restoreFocus || lostFocus) { readability.arm(document.getElementById(owner)); }
+    },
+
+    /**
+     * Space on one of the bar's link-buttons.
+     *
+     * A button reached with Tab is the reader's own choice, and Space presses
+     * it, as on any button. The button Notemill preselected - Send to Notion
+     * when the reading view opens, Save once that row is open - only answers
+     * Enter: Space there reads on, as Space does everywhere in a reading view.
+     * Otherwise two presses of Space to start reading would open the Notion
+     * row and then save a page nobody meant to save.
+     *
+     * @param KeyboardEvent
+     * @return void
+    **/
+    barSpace: function (e) {
+        if (e.key !== " " && e.key !== "Spacebar") { return; }
+        if (!e.target || e.target.tagName !== "A") { return; }
+        e.preventDefault();
+        if (e.target === readability.armed) {
+            readability.pageScroll(!!e.shiftKey);
+            return;
+        }
+        e.target.click();
+    },
+
+    /** Scroll by a screen, down or up, as Space and Shift+Space do. */
+    pageScroll: function (up) {
+        readability.curScrollStep = 0;
+        var h = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
+        var from = readability.scrollTop();
+        readability.scrollTo(from, from + (up ? -1 : 1) * (h - 50), 20, 10);
     },
 
     armed: null,

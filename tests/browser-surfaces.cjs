@@ -32,8 +32,13 @@ const init = `
         localStorage.setItem('fixturePrefs', JSON.stringify(next)); emit(old, next); if (cb) cb();
       }
     }, onChanged: {addListener: fn => listeners.push(fn)}},
+    commands: {
+      getAll: cb => cb(JSON.parse(localStorage.getItem('fixtureCommands') || '[{"name":"open-reader","shortcut":"Ctrl+Shift+Y"}]'))
+    },
+    action: {setTitle: o => { window.fixtureTitle = o.title; }},
+    tabs: {create: o => { window.fixtureOpened = o.url; }},
     runtime: {
-      getManifest: () => ({version:'1.8.0'}),
+      getManifest: () => ({version:'1.8.0', action:{default_title:'Make this page readable'}}),
       reload: () => { throw new Error('Unexpected extension reload'); },
       sendMessage: (msg, cb) => {
         window.fixtureMessages.push(msg);
@@ -108,6 +113,16 @@ const server = http.createServer((req, res) => {
     assert.equal(await options.evaluate(`document.getElementById('notion_source_actions').hidden`),true);
     assert.equal(await options.evaluate(`document.getElementById('notion_app').open`),false);
     console.log('PASS connected button names the workspace and the built-in connection needs no note');
+    // The guide: the browser's shortcut, shown where people look for it, and a way to change it.
+    assert.deepEqual(await options.evaluate(`[...document.querySelectorAll('main > section')].map(s => s.id).slice(0, 2)`),['notion','guide']);
+    assert.deepEqual(await options.evaluate(`[...document.querySelectorAll('.js-shortcut')].map(k => k.textContent)`),['Ctrl+Shift+Y','Ctrl+Shift+Y']);
+    assert.equal(await options.evaluate(`document.getElementById('guide_press').hidden`),false);
+    assert.equal(await options.evaluate(`document.getElementById('shortcut_state').textContent`),'Opens the reading view: Ctrl+Shift+Y');
+    assert.equal(await options.evaluate('window.fixtureTitle'),'Make this page readable (Ctrl+Shift+Y)');
+    await options.evaluate(`document.getElementById('shortcut_change').click()`);
+    assert.equal(await options.evaluate('window.fixtureOpened'),'chrome://extensions/shortcuts');
+    assert.ok(await options.evaluate(`document.querySelectorAll('#guide dl.keys dt').length >= 5`));
+    console.log('PASS the guide shows the current shortcut, puts it in the tooltip and opens the shortcut page');
     const picker = await page('pick.html');
     for (const theme of ['dark','light']) {
       await options.evaluate(`document.getElementById('lr_theme').value = '${theme}'; document.getElementById('lr_theme').dispatchEvent(new Event('change'));`);
@@ -130,7 +145,7 @@ const server = http.createServer((req, res) => {
       }
     }
     console.log('PASS System theme follows live OS changes on both surfaces');
-    for (const [hash,id] of [['folder','pick_folder'],['appearance','lr_theme'],['custom-css','css_readability'],['destinations','notion_refresh']]) {
+    for (const [hash,id] of [['folder','pick_folder'],['guide','shortcut_change'],['appearance','lr_theme'],['custom-css','css_readability'],['destinations','notion_refresh']]) {
       await options.evaluate(`location.hash = '${hash}'`);
       await options.waitFor(`document.activeElement.id === '${id}'`);
     }
@@ -259,6 +274,15 @@ const server = http.createServer((req, res) => {
     assert.equal(await text('notion_typed'),'');
     assert.equal(await prop('notion_connect','disabled'),false);
     console.log('PASS typing an own app explains the effect live, below the fields, and clearing it returns to the built-in connection');
+
+    // Without a shortcut the guide says so and offers to set one; the tooltip stays plain.
+    await options.evaluate(`localStorage.setItem('fixtureCommands', JSON.stringify([{name:'open-reader', shortcut:''}]))`);
+    await reload(`document.getElementById('shortcut_change').textContent === 'Set a shortcut…'`);
+    assert.equal(await options.evaluate(`document.getElementById('guide_press').hidden`),true);
+    assert.match(await options.evaluate(`document.getElementById('shortcut_state').textContent`),/No shortcut is set/);
+    assert.equal(await options.evaluate('window.fixtureTitle'),'Make this page readable');
+    await options.evaluate(`localStorage.removeItem('fixtureCommands')`);
+    console.log('PASS without a shortcut the guide offers to set one and the tooltip stays plain');
 
     await options.evaluate(`localStorage.setItem('fixtureApp','missing'); location.hash = 'notion'`);
     await reload(`document.activeElement.id === 'notion_client_id'`);

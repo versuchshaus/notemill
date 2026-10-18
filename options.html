@@ -14,6 +14,7 @@
         <p class="hint">Your reading, saving and Notion preferences.</p>
         <nav aria-label="Settings sections">
           <a href="#notion">Notion</a>
+          <a href="#guide">How to use</a>
           <a href="#folder">Save folder</a>
           <a href="#appearance">Appearance</a>
           <a href="#custom-css">Custom CSS</a>
@@ -64,6 +65,39 @@
         <div class="actions">
           <button type="button" id="notion_refresh">Refresh list</button>
           <button type="button" id="notion_targets_none">Clear selection</button>
+        </div>
+      </section>
+
+      <section id="guide" aria-labelledby="guide_heading">
+        <h2 id="guide_heading" tabindex="-1">How to use Notemill</h2>
+        <ol class="guide">
+          <li>Open an article and <span id="guide_press">press <kbd class="js-shortcut">⇧⌘U</kbd>, or </span>click
+            the Notemill icon in the toolbar.</li>
+          <li>Only want part of the page? Select it first: Notemill then keeps only your selection.</li>
+          <li>In the reading view, choose <b>Send to Notion</b>, <b>Save .md</b>, <b>Copy Markdown</b>
+            or <b>Print</b>.</li>
+        </ol>
+
+        <h3 id="keys_heading">Keys in the reading view</h3>
+        <dl class="keys" aria-labelledby="keys_heading">
+          <dt><kbd>Enter</kbd></dt>
+          <dd><b>Send to Notion</b> is ready as soon as the reading view opens: Enter opens it, Enter again saves.</dd>
+          <dt><kbd>Tab</kbd> <kbd>Shift+Tab</kbd></dt>
+          <dd>Move along the buttons of the bar. <kbd>Enter</kbd> or <kbd>Space</kbd> presses the one you are on.</dd>
+          <dt><kbd>↑</kbd> <kbd>↓</kbd></dt>
+          <dd>Pick a suggested tag while typing tags.</dd>
+          <dt><kbd>Space</kbd> <kbd>Shift+Space</kbd></dt>
+          <dd>Scroll down or up by a screen, also right after opening: only Enter sends to Notion.</dd>
+          <dt><kbd>Esc</kbd></dt>
+          <dd>Close the open row. Press it again to leave the reading view.</dd>
+        </dl>
+        <p class="hint">Opened with a click and the keys do nothing? Some browsers keep the keyboard in their
+          toolbar after a click. Open Notemill with your shortcut instead: it leaves the keyboard on the page.</p>
+
+        <h3 id="shortcut_heading">Your shortcut</h3>
+        <p id="shortcut_state" role="status" aria-live="polite">Opens the reading view: <kbd class="js-shortcut">⇧⌘U</kbd></p>
+        <div class="actions">
+          <button type="button" id="shortcut_change">Change shortcut…</button>
         </div>
       </section>
 

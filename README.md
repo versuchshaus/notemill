@@ -167,7 +167,11 @@ Notion is optional: reading, Markdown, copying and printing work without connect
 
 1. Open any article: a blog post, a news story, a Medium or Substack post.
 2. Click the **Notemill icon**, or press **⌘⇧U** on a Mac, **Ctrl+Shift+U** on Windows and Linux.
+   Forgot the shortcut? Hover over the icon: it shows your current one.
 3. The page turns into a clean reading view. The toolbar stays at the top right while you scroll.
+
+The settings page has a short guide under *How to use*: every key in the reading view, and a
+button to change the shortcut.
 
 **Only want part of a page?** Select it first, then click the Notemill icon. The reading view
 shows only your selection, and Save .md, Copy Markdown and Send to Notion keep only that part.

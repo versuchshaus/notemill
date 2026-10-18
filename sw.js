@@ -61,6 +61,25 @@ chrome.action.onClicked.addListener(function(tab) {
 // one is handled as a press of the toolbar button and moves the keyboard into
 // the toolbar like a click does. A plain command leaves focus on the page, so
 // after the shortcut Enter sends to Notion and Tab walks the reader's bar.
+// The shortcut in the toolbar button's tooltip - "Make this page readable
+// (⇧⌘U)" - so whoever forgot it finds it by hovering over the icon. Asked
+// for, not assumed: people can change it. Refreshed whenever the worker
+// starts, and by the options page after a change.
+function showShortcutInTitle() {
+  if (!chrome.commands || !chrome.commands.getAll || !chrome.action || !chrome.action.setTitle) { return; }
+  chrome.commands.getAll(function (commands) {
+    var mine = (commands || []).filter(function (c) { return c.name === "open-reader"; })[0];
+    var base = ((chrome.runtime.getManifest() || {}).action || {}).default_title || "Make this page readable";
+    chrome.action.setTitle({title: mine && mine.shortcut ? base + " (" + mine.shortcut + ")" : base});
+  });
+}
+showShortcutInTitle();
+// A title set without a tab lasts only for the browser session, and nothing
+// else wakes the worker when the browser starts: so refresh it at startup,
+// and where the browser reports shortcut changes (Firefox), on each change.
+if (chrome.runtime.onStartup) { chrome.runtime.onStartup.addListener(showShortcutInTitle); }
+if (chrome.commands && chrome.commands.onChanged) { chrome.commands.onChanged.addListener(showShortcutInTitle); }
+
 // Guarded: a browser without the commands API must still get a working
 // worker, since everything else - Notion, saving - runs through it.
 if (chrome.commands && chrome.commands.onCommand) {

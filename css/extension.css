@@ -72,6 +72,26 @@ label.check { display: flex; align-items: center; gap: 0.55rem; font-weight: 400
 /* One line of text tall even when empty, so a message appearing or clearing does not move what follows. */
 [role="status"] { min-height: 1.6em; margin: 0.6rem 0 0; overflow-wrap: anywhere; }
 #notion_source:empty, #notion_typed:empty { min-height: 0; margin: 0; }
+
+/* The guide: three steps, then the keys as a two-column list. */
+ol.guide { margin: 0.6rem 0 0; padding-inline-start: 1.4rem; }
+ol.guide li { margin: 0.35rem 0; }
+kbd {
+  font: 600 0.85em/1 ui-monospace, "SF Mono", Menlo, monospace;
+  padding: 0.18em 0.45em;
+  border: 1px solid hsl(var(--border));
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: hsl(var(--secondary));
+  white-space: nowrap;
+}
+dl.keys { display: grid; grid-template-columns: max-content 1fr; gap: 0.45rem 1rem; margin: 0.6rem 0 0; }
+dl.keys dt { margin: 0; }
+dl.keys dd { margin: 0; }
+@media (max-width: 400px) {
+  dl.keys { grid-template-columns: 1fr; gap: 0.1rem; }
+  dl.keys dd { margin-bottom: 0.5rem; }
+}
 #notion_source_actions { margin-top: 0.6rem; }
 .picker main { margin: 1rem auto; padding: 0 1rem; max-width: 32rem; }
 .picker h1 { font-size: 1.2rem; }

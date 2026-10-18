@@ -70,6 +70,9 @@ async function until(fn, message) {
     assert.ok(readerCommand, 'open-reader command registered');
     assert.ok(!commands.some(c => c.name === '_execute_action' && c.shortcut), 'the toolbar-button command has no shortcut');
     assert.match(readerCommand.shortcut, /U$/, 'the suggested shortcut is assigned: ' + readerCommand.shortcut);
+    // Whoever forgets it finds it on the icon's tooltip and in the guide.
+    await options.waitFor(`chrome.action.getTitle({}).then(t => t === ${JSON.stringify('Make this page readable (' + readerCommand.shortcut + ')')})`);
+    assert.equal(await options.evaluate(`document.getElementById('shortcut_state').textContent`),'Opens the reading view: ' + readerCommand.shortcut);
     console.log('PASS real extension installs, opens options and answers worker ping (no account connected)');
 
     const image = fs.readFileSync(path.join(root,'img/icon-128.png'));
@@ -115,6 +118,17 @@ async function until(fn, message) {
     assert.ok(await reader.evaluate(`document.getElementById('readability-content').textContent.includes('Astra integration fixture')`));
     assert.equal(await reader.evaluate(`document.querySelectorAll('#readability-content img').length`),1);
     console.log('PASS real toolbar activation grants activeTab and injects reader with shared CSS and image intact');
+
+    // Space right after opening reads on: it scrolls, and never opens Send to Notion.
+    await reader.waitFor(`document.activeElement && document.activeElement.id === 'send-notion'`);
+    const top = await reader.evaluate('scrollY');
+    for (const type of ['keyDown', 'keyUp']) {
+      await reader.call('Input.dispatchKeyEvent', {type, key: ' ', code: 'Space', windowsVirtualKeyCode: 32, text: type === 'keyDown' ? ' ' : undefined});
+    }
+    await reader.waitFor(`scrollY > ${top}`);
+    assert.equal(await reader.evaluate(`document.getElementById('readMarkdownStatus').textContent.trim()`),'');
+    await reader.evaluate('window.scrollTo(0, 0)');
+    console.log('PASS Space on the preselected Send to Notion scrolls instead of opening it');
 
     // Open a fixture page in its own tab, optionally select part of it, press the toolbar icon.
     async function readerFor(pathname, select) {

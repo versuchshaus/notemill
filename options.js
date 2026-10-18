@@ -404,6 +404,7 @@ function healStaleWorker() {
 function focusSettingsSection() {
   var section = window.location.hash.slice(1);
   var targets = {folder: "pick_folder", appearance: "lr_theme", "custom-css": "css_readability",
+                 guide: "shortcut_change",
                  destinations: $("notion_refresh").disabled ? "destinations" : "notion_refresh"};
   if (section === "notion") {
     if (!$("notion_connect").disabled) { targets.notion = "notion_connect"; }
@@ -416,6 +417,71 @@ function focusSettingsSection() {
   if (!target) { return; }
   target.focus({preventScroll: true});
   target.scrollIntoView({block: "center"});
+}
+
+/* ---- the keyboard shortcut ----
+
+   The browser owns the shortcut and people can change it, so it is always
+   asked for, never assumed to be ⇧⌘U. The same answer goes into the guide and
+   into the toolbar button's tooltip, so whoever forgets it finds it by
+   hovering over the icon. */
+
+function readShortcut(done) {
+  if (!chrome.commands || !chrome.commands.getAll) { done(null); return; }
+  chrome.commands.getAll(function (commands) {
+    var mine = (commands || []).filter(function (c) { return c.name === "open-reader"; })[0];
+    done(mine && mine.shortcut ? mine.shortcut : "");
+  });
+}
+
+function actionTitle(shortcut) {
+  var base = ((chrome.runtime.getManifest() || {}).action || {}).default_title || "Make this page readable";
+  return shortcut ? base + " (" + shortcut + ")" : base;
+}
+
+/* What is on screen, so returning to the page does not rewrite the live
+   region and make a screen reader read the same line again. */
+var shownShortcut;
+
+function renderShortcut() {
+  readShortcut(function (shortcut) {
+    if (shortcut === shownShortcut) { return; }
+    shownShortcut = shortcut;
+    var caps = document.querySelectorAll(".js-shortcut");
+    for (var i = 0; i < caps.length; i += 1) { caps[i].textContent = shortcut || ""; }
+    $("guide_press").hidden = !shortcut;
+
+    var state = $("shortcut_state");
+    state.textContent = "";
+    if (shortcut === null) {
+      state.textContent = "This browser does not offer shortcuts for extensions.";
+    } else if (shortcut) {
+      state.appendChild(document.createTextNode("Opens the reading view: "));
+      var key = document.createElement("kbd");
+      key.className = "js-shortcut";
+      key.textContent = shortcut;
+      state.appendChild(key);
+    } else {
+      state.textContent = "No shortcut is set. Set one to open the reading view from the keyboard.";
+    }
+    $("shortcut_change").hidden = shortcut === null;
+    $("shortcut_change").textContent = shortcut ? "Change shortcut…" : "Set a shortcut…";
+
+    /* Also after a change made a moment ago on the browser's page. */
+    if (shortcut !== null && chrome.action && chrome.action.setTitle) {
+      chrome.action.setTitle({title: actionTitle(shortcut)});
+    }
+  });
+}
+
+/* Browsers keep their shortcuts on a page of their own; Firefox can open it
+   directly, Chromium browsers by its address. */
+function changeShortcut() {
+  if (chrome.commands && chrome.commands.openShortcutSettings) {
+    chrome.commands.openShortcutSettings();
+    return;
+  }
+  chrome.tabs.create({url: "chrome://extensions/shortcuts"});
 }
 
 /* While typing, Connect and the note follow the fields, so starting to fill in
@@ -433,6 +499,7 @@ $("notion_client_secret").addEventListener("input", updateConnectAvailability);
 
 document.addEventListener("DOMContentLoaded", function () {
   healStaleWorker();
+  renderShortcut();
   restoreFolder();
   restoreTheme();
   restoreCSS();
@@ -454,6 +521,12 @@ $("save").addEventListener("click", saveCSS);
 $("notion_connect").addEventListener("click", connectNotion);
 $("notion_disconnect").addEventListener("click", disconnectNotion);
 $("notion_use_builtin").addEventListener("click", useBuiltinConnection);
+$("shortcut_change").addEventListener("click", changeShortcut);
+/* Coming back from the browser's shortcut page shows the new shortcut. */
+window.addEventListener("focus", renderShortcut);
+document.addEventListener("visibilitychange", function () {
+  if (document.visibilityState === "visible") { renderShortcut(); }
+});
 $("notion_refresh").addEventListener("click", refreshTargets);
 $("notion_targets_none").addEventListener("click", clearChosenTargets);
 $("notion_include_pages").addEventListener("change", saveIncludePages);
